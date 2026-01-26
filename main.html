@@ -33,6 +33,22 @@ body{
   display:none;
 }
 
+#closeChatBtn{
+  display:none;
+  position:fixed;
+  top:20px;
+  right:20px;
+  z-index:10000;
+  background:#202123;
+  color:white;
+  border:none;
+  border-radius:50%;
+  width:42px;
+  height:42px;
+  font-size:20px;
+  cursor:pointer;
+}
+
 .searchBox{
   display:inline-flex;
   width:100%;
@@ -64,7 +80,6 @@ button{
 
 <body>
 
-<!-- SEARCH UI -->
 <div id="landing-ui">
   <h1 style="font-size:48px; font-weight:700; margin-bottom:20px;">
     How can <span style="color:#0070d2;">Agentforce</span> help?
@@ -80,8 +95,8 @@ button{
   </p>
 </div>
 
-<!-- CHAT CONTAINER -->
 <div id="embeddedMessagingContainer"></div>
+<button id="closeChatBtn">✕</button>
 
 <script>
 let capturedInput = "";
@@ -90,15 +105,15 @@ let chatLaunched = false;
 /* ================= INIT ESW ================= */
 function initEmbeddedMessaging() {
 
-  // ⭐ MUST be set BEFORE init()
   embeddedservice_bootstrap.settings.language = "en_US";
   embeddedservice_bootstrap.settings.hideChatButtonOnLoad = true;
-  embeddedservice_bootstrap.settings.displayMode = "inline";
-  embeddedservice_bootstrap.settings.targetElement =
-    document.getElementById("embeddedMessagingContainer");
 
-  // ESW ready
+  // ⭐ Set inline ONLY when ESW is ready (prevents auto launch)
   window.addEventListener("onEmbeddedMessagingReady", () => {
+    embeddedservice_bootstrap.settings.displayMode = "inline";
+    embeddedservice_bootstrap.settings.targetElement =
+      document.getElementById("embeddedMessagingContainer");
+
     const btn = document.getElementById("searchBtn");
     const msg = document.getElementById("statusMsg");
 
@@ -108,26 +123,35 @@ function initEmbeddedMessaging() {
     msg.innerText = "Agent is ready. Type your question.";
   });
 
-  // Conversation opened
+  // Chat opened
   window.addEventListener("onEmbeddedMessagingConversationOpened", () => {
 
-    // Wait until iframe is actually mounted
-    const waitForIframe = setInterval(() => {
-      const frame = document.querySelector(".embeddedMessagingFrame");
-
-      if(frame){
-        clearInterval(waitForIframe);
+    const wait = setInterval(() => {
+      if(document.querySelector(".embeddedMessagingFrame")){
+        clearInterval(wait);
 
         document.getElementById("landing-ui").style.display = "none";
         document.getElementById("embeddedMessagingContainer").style.display = "block";
+        document.getElementById("closeChatBtn").style.display = "block";
 
         if(capturedInput){
           embeddedservice_bootstrap.utilAPI.sendTextMessage(capturedInput);
           capturedInput = "";
         }
       }
-    }, 100);
+    },100);
   });
+
+  // Handle Salesforce minimize OR close
+  const restoreUI = () => {
+    chatLaunched = false;
+    document.getElementById("embeddedMessagingContainer").style.display = "none";
+    document.getElementById("landing-ui").style.display = "flex";
+    document.getElementById("closeChatBtn").style.display = "none";
+  };
+
+  window.addEventListener("onEmbeddedMessagingWindowClosed", restoreUI);
+  window.addEventListener("onEmbeddedMessagingWindowMinimized", restoreUI);
 
   embeddedservice_bootstrap.init(
     "00DTA00000B1e6j",
@@ -139,25 +163,19 @@ function initEmbeddedMessaging() {
   );
 }
 
-/* ================= USER INTERACTION ================= */
+/* ================= USER ACTION ================= */
 document.addEventListener("DOMContentLoaded", () => {
 
   const btn = document.getElementById("searchBtn");
   const input = document.getElementById("agentInput");
+  const closeBtn = document.getElementById("closeChatBtn");
 
   input.addEventListener("input", () => {
-    if(input.value.trim()){
-      btn.disabled = false;
-      btn.style.cursor = "pointer";
-    } else {
-      btn.disabled = true;
-      btn.style.cursor = "not-allowed";
-    }
+    btn.disabled = !input.value.trim();
   });
 
   const startChat = () => {
     if(chatLaunched) return;
-
     const text = input.value.trim();
     if(!text) return;
 
@@ -171,6 +189,14 @@ document.addEventListener("DOMContentLoaded", () => {
   btn.addEventListener("click", startChat);
   input.addEventListener("keydown", e => {
     if(e.key === "Enter") startChat();
+  });
+
+  // Custom X ends session
+  closeBtn.addEventListener("click", () => {
+    embeddedservice_bootstrap.utilAPI.sendTextMessage("end");
+    setTimeout(() => {
+      embeddedservice_bootstrap.utilAPI.endChat();
+    }, 400);
   });
 
 });
