@@ -2,34 +2,14 @@
 <html>
 <head>
 <meta charset="UTF-8" />
-<title>Agentforce Portal</title>
+<title>Agentforce Debug Portal</title>
 
 <style>
 body{margin:0;padding:0;height:100vh;width:100vw;font-family:sans-serif;}
 #landing-ui{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;}
-#embeddedMessagingContainer{position:fixed;top:0;left:0;width:100vw;height:100vh;background:#fff;z-index:9999;display:none;}
-#closeChatBtn{
-  display:none;
-  position:fixed;
-  top:20px;
-  right:20px;
-  z-index:10000;
-  background:#202123;
-  color:#fff;
-  border:none;
-  border-radius:50%;
-  width:42px;
-  height:42px;
-  font-size:20px;
-  cursor:pointer;
-}
 .embeddedservice_bootstrap .embeddedMessagingFrame{
-  position:fixed!important;
-  top:0!important;
-  left:0!important;
-  width:100vw!important;
-  height:100vh!important;
-  border:none!important;
+  position:fixed!important;top:0!important;left:0!important;
+  width:100vw!important;height:100vh!important;border:none!important;
 }
 </style>
 </head>
@@ -37,71 +17,76 @@ body{margin:0;padding:0;height:100vh;width:100vw;font-family:sans-serif;}
 <body>
 
 <div id="landing-ui">
-  <h1>How can Agentforce help?</h1>
+  <h1>Agentforce Debug UI</h1>
   <input id="agentInput" placeholder="Type your request..." />
   <button id="searchBtn" disabled>Send</button>
   <p id="statusMsg">Initializing Agent…</p>
 </div>
 
-<div id="embeddedMessagingContainer"></div>
-<button id="closeChatBtn">✕</button>
-
 <script>
 let capturedInput = "";
 let chatLaunched = false;
+let waitingToSend = false;
+
+function log(msg){
+  console.log("%c[DEBUG] " + msg, "color:green;font-weight:bold;");
+}
 
 /* ================= SAFE SINGLE INIT ================= */
 function safeInit(){
-  if(window.eswInitialized) return;
+  if(window.eswInitialized){
+    log("ESW already initialized — skipping");
+    return;
+  }
   if(!window.embeddedservice_bootstrap) return;
 
   window.eswInitialized = true;
+  log("safeInit() → initEmbeddedMessaging()");
   initEmbeddedMessaging();
 }
 
 function initEmbeddedMessaging(){
 
+  log("initEmbeddedMessaging() called");
+
   embeddedservice_bootstrap.settings.language = "en_US";
   embeddedservice_bootstrap.settings.hideChatButtonOnLoad = true;
-
-  // ⭐ CRITICAL SETTINGS
   embeddedservice_bootstrap.settings.disableAutoSessionRestore = true;
   embeddedservice_bootstrap.settings.displayMode = "inline";
-  embeddedservice_bootstrap.settings.targetElement =
-      document.getElementById("embeddedMessagingContainer");
 
   window.addEventListener("onEmbeddedMessagingReady", () => {
-    document.getElementById("searchBtn").disabled = false;
-    document.getElementById("statusMsg").innerText = "Agent Ready";
+    log("Event: onEmbeddedMessagingReady");
+
+    // First ready → enable UI
+    if(!chatLaunched){
+      document.getElementById("searchBtn").disabled = false;
+      document.getElementById("statusMsg").innerText = "Agent Ready";
+      return;
+    }
+
+    // Second ready → chat UI is fully ready
+    if(waitingToSend && capturedInput){
+      log("Chat UI ready → sending message: " + capturedInput);
+      embeddedservice_bootstrap.utilAPI.sendTextMessage(capturedInput);
+      capturedInput = "";
+      waitingToSend = false;
+    }
   });
 
   window.addEventListener("onEmbeddedMessagingConversationOpened", () => {
-
-    const wait = setInterval(()=>{
-      if(document.querySelector(".embeddedMessagingFrame")){
-        clearInterval(wait);
-
-        document.getElementById("landing-ui").style.display = "none";
-        document.getElementById("embeddedMessagingContainer").style.display = "block";
-        document.getElementById("closeChatBtn").style.display = "block";
-
-        if(capturedInput){
-          embeddedservice_bootstrap.utilAPI.sendTextMessage(capturedInput);
-          capturedInput = "";
-        }
-      }
-    },100);
+    log("Event: ConversationOpened → hiding landing UI");
+    document.getElementById("landing-ui").style.display = "none";
+    waitingToSend = true;
   });
 
-  const restoreUI = () => {
+  const restoreUI = (source) => {
+    log("Restore UI triggered by: " + source);
     chatLaunched = false;
-    document.getElementById("embeddedMessagingContainer").style.display = "none";
     document.getElementById("landing-ui").style.display = "flex";
-    document.getElementById("closeChatBtn").style.display = "none";
   };
 
-  window.addEventListener("onEmbeddedMessagingWindowClosed", restoreUI);
-  window.addEventListener("onEmbeddedMessagingWindowMinimized", restoreUI);
+  window.addEventListener("onEmbeddedMessagingWindowClosed", ()=>restoreUI("WindowClosed"));
+  window.addEventListener("onEmbeddedMessagingWindowMinimized", ()=>restoreUI("WindowMinimized"));
 
   embeddedservice_bootstrap.init(
     "00DTA00000B1e6j",
@@ -109,42 +94,52 @@ function initEmbeddedMessaging(){
     "https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563",
     { scrt2URL: "https://charlesdean--partialcop.sandbox.my.salesforce-scrt.com" }
   );
+
+  log("embeddedservice_bootstrap.init() called");
 }
 
 /* ================= USER INTERACTION ================= */
 document.addEventListener("DOMContentLoaded", () => {
 
+  log("DOM fully loaded");
+
   const btn = document.getElementById("searchBtn");
   const input = document.getElementById("agentInput");
-  const closeBtn = document.getElementById("closeChatBtn");
 
   input.addEventListener("input", () => {
+    log("Typing: " + input.value);
     btn.disabled = !input.value.trim();
   });
 
   const startChat = () => {
-    if(chatLaunched) return;
+    log("startChat() triggered");
+
+    if(chatLaunched){
+      log("Chat already launched — ignoring");
+      return;
+    }
 
     const text = input.value.trim();
-    if(!text) return;
+    if(!text){
+      log("No text entered");
+      return;
+    }
 
     capturedInput = text;
     input.value = "";
     chatLaunched = true;
 
+    log("Calling launchChat()");
     embeddedservice_bootstrap.utilAPI.launchChat();
   };
 
   btn.addEventListener("click", startChat);
   input.addEventListener("keydown", e => {
-    if(e.key === "Enter") startChat();
+    if(e.key === "Enter"){
+      log("Enter key pressed");
+      startChat();
+    }
   });
-
-  // ❌ ONLY send end. UI restored by Salesforce event
-  closeBtn.addEventListener("click", () => {
-    embeddedservice_bootstrap.utilAPI.sendTextMessage("end");
-  });
-
 });
 
 /* ===== Wait for ESW bootstrap, then init ONCE ===== */
