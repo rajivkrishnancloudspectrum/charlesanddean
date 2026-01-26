@@ -27,9 +27,13 @@ body{margin:0;padding:0;height:100vh;width:100vw;font-family:sans-serif;}
 let capturedInput = "";
 let chatLaunched = false;
 let waitingToSend = false;
+let readyCount = 0;
 
 function log(msg){
-  console.log("%c[DEBUG] " + msg, "color:green;font-weight:bold;");
+  console.log(
+    "%c[DEBUG " + new Date().toISOString().split('T')[1] + "] " + msg,
+    "color:green;font-weight:bold;"
+  );
 }
 
 /* ================= SAFE SINGLE INIT ================= */
@@ -38,7 +42,10 @@ function safeInit(){
     log("ESW already initialized — skipping");
     return;
   }
-  if(!window.embeddedservice_bootstrap) return;
+  if(!window.embeddedservice_bootstrap){
+    log("ESW bootstrap not present yet");
+    return;
+  }
 
   window.eswInitialized = true;
   log("safeInit() → initEmbeddedMessaging()");
@@ -54,19 +61,23 @@ function initEmbeddedMessaging(){
   embeddedservice_bootstrap.settings.disableAutoSessionRestore = true;
   embeddedservice_bootstrap.settings.displayMode = "inline";
 
-  window.addEventListener("onEmbeddedMessagingReady", () => {
-    log("Event: onEmbeddedMessagingReady");
+  log("Settings applied BEFORE init");
 
-    // First ready → enable UI
+  /* ========== ESW EVENTS ========== */
+
+  window.addEventListener("onEmbeddedMessagingReady", () => {
+    readyCount++;
+    log("Event: onEmbeddedMessagingReady → count: " + readyCount);
+
     if(!chatLaunched){
+      log("Ready #1 → enabling UI");
       document.getElementById("searchBtn").disabled = false;
       document.getElementById("statusMsg").innerText = "Agent Ready";
       return;
     }
 
-    // Second ready → chat UI is fully ready
     if(waitingToSend && capturedInput){
-      log("Chat UI ready → sending message: " + capturedInput);
+      log("Ready #2 → Chat UI ready → sending message: " + capturedInput);
       embeddedservice_bootstrap.utilAPI.sendTextMessage(capturedInput);
       capturedInput = "";
       waitingToSend = false;
@@ -74,19 +85,23 @@ function initEmbeddedMessaging(){
   });
 
   window.addEventListener("onEmbeddedMessagingConversationOpened", () => {
-    log("Event: ConversationOpened → hiding landing UI");
+    log("Event: ConversationOpened");
     document.getElementById("landing-ui").style.display = "none";
     waitingToSend = true;
+    log("waitingToSend set → " + waitingToSend);
   });
 
-  const restoreUI = (source) => {
-    log("Restore UI triggered by: " + source);
-    chatLaunched = false;
-    document.getElementById("landing-ui").style.display = "flex";
-  };
+  window.addEventListener("onEmbeddedMessagingWindowMinimized", () => {
+    log("Event: WindowMinimized");
+    restoreUI("WindowMinimized");
+  });
 
-  window.addEventListener("onEmbeddedMessagingWindowClosed", ()=>restoreUI("WindowClosed"));
-  window.addEventListener("onEmbeddedMessagingWindowMinimized", ()=>restoreUI("WindowMinimized"));
+  window.addEventListener("onEmbeddedMessagingWindowClosed", () => {
+    log("Event: WindowClosed");
+    restoreUI("WindowClosed");
+  });
+
+  /* ========== INIT ESW ========== */
 
   embeddedservice_bootstrap.init(
     "00DTA00000B1e6j",
@@ -96,6 +111,13 @@ function initEmbeddedMessaging(){
   );
 
   log("embeddedservice_bootstrap.init() called");
+}
+
+function restoreUI(source){
+  log("restoreUI() triggered by: " + source);
+  chatLaunched = false;
+  waitingToSend = false;
+  document.getElementById("landing-ui").style.display = "flex";
 }
 
 /* ================= USER INTERACTION ================= */
@@ -119,6 +141,11 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    if(!window.embeddedservice_bootstrap?.utilAPI){
+      log("utilAPI not ready yet");
+      return;
+    }
+
     const text = input.value.trim();
     if(!text){
       log("No text entered");
@@ -130,7 +157,11 @@ document.addEventListener("DOMContentLoaded", () => {
     chatLaunched = true;
 
     log("Calling launchChat()");
-    embeddedservice_bootstrap.utilAPI.launchChat();
+
+    embeddedservice_bootstrap.utilAPI.launchChat()
+      .then(() => log("launchChat() resolved"))
+      .catch(err => log("launchChat() error: " + err))
+      .finally(() => log("launchChat() finished"));
   };
 
   btn.addEventListener("click", startChat);
@@ -146,6 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
 const waitForESW = setInterval(()=>{
   if(window.embeddedservice_bootstrap){
     clearInterval(waitForESW);
+    log("ESW bootstrap detected");
     safeInit();
   }
 },100);
