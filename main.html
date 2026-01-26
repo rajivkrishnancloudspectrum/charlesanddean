@@ -26,8 +26,6 @@ body{margin:0;padding:0;height:100vh;width:100vw;font-family:sans-serif;}
 <script>
 let capturedInput = "";
 let chatLaunched = false;
-let waitingToSend = false;
-let readyCount = 0;
 
 function log(msg){
   console.log(
@@ -63,45 +61,38 @@ function initEmbeddedMessaging(){
 
   log("Settings applied BEFORE init");
 
-  /* ========== ESW EVENTS ========== */
-
   window.addEventListener("onEmbeddedMessagingReady", () => {
-    readyCount++;
-    log("Event: onEmbeddedMessagingReady → count: " + readyCount);
-
-    if(!chatLaunched){
-      log("Ready #1 → enabling UI");
-      document.getElementById("searchBtn").disabled = false;
-      document.getElementById("statusMsg").innerText = "Agent Ready";
-      return;
-    }
-
-    if(waitingToSend && capturedInput){
-      log("Ready #2 → Chat UI ready → sending message: " + capturedInput);
-      embeddedservice_bootstrap.utilAPI.sendTextMessage(capturedInput);
-      capturedInput = "";
-      waitingToSend = false;
-    }
+    log("Event: onEmbeddedMessagingReady → enabling UI");
+    document.getElementById("searchBtn").disabled = false;
+    document.getElementById("statusMsg").innerText = "Agent Ready";
   });
 
+  /* 🔥 CRITICAL FIX — SEND ONLY AFTER IFRAME EXISTS */
   window.addEventListener("onEmbeddedMessagingConversationOpened", () => {
-    log("Event: ConversationOpened");
+    log("Event: ConversationOpened → hiding landing UI");
     document.getElementById("landing-ui").style.display = "none";
-    waitingToSend = true;
-    log("waitingToSend set → " + waitingToSend);
+
+    const waitForFrame = setInterval(() => {
+      const frame = document.querySelector(".embeddedMessagingFrame");
+      if(frame && capturedInput){
+        clearInterval(waitForFrame);
+
+        log("Iframe detected → sending message: " + capturedInput);
+        embeddedservice_bootstrap.utilAPI.sendTextMessage(capturedInput);
+        capturedInput = "";
+      }
+    }, 100);
   });
 
   window.addEventListener("onEmbeddedMessagingWindowMinimized", () => {
-    log("Event: WindowMinimized");
-    restoreUI("WindowMinimized");
+    log("Event: WindowMinimized → restoring UI");
+    restoreUI();
   });
 
   window.addEventListener("onEmbeddedMessagingWindowClosed", () => {
-    log("Event: WindowClosed");
-    restoreUI("WindowClosed");
+    log("Event: WindowClosed → restoring UI");
+    restoreUI();
   });
-
-  /* ========== INIT ESW ========== */
 
   embeddedservice_bootstrap.init(
     "00DTA00000B1e6j",
@@ -113,10 +104,8 @@ function initEmbeddedMessaging(){
   log("embeddedservice_bootstrap.init() called");
 }
 
-function restoreUI(source){
-  log("restoreUI() triggered by: " + source);
+function restoreUI(){
   chatLaunched = false;
-  waitingToSend = false;
   document.getElementById("landing-ui").style.display = "flex";
 }
 
@@ -141,11 +130,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    if(!window.embeddedservice_bootstrap?.utilAPI){
-      log("utilAPI not ready yet");
-      return;
-    }
-
     const text = input.value.trim();
     if(!text){
       log("No text entered");
@@ -157,11 +141,9 @@ document.addEventListener("DOMContentLoaded", () => {
     chatLaunched = true;
 
     log("Calling launchChat()");
-
     embeddedservice_bootstrap.utilAPI.launchChat()
       .then(() => log("launchChat() resolved"))
-      .catch(err => log("launchChat() error: " + err))
-      .finally(() => log("launchChat() finished"));
+      .catch(err => log("launchChat() error: " + err));
   };
 
   btn.addEventListener("click", startChat);
