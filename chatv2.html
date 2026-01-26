@@ -1,135 +1,147 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8" />
-<title>Agentforce Working Portal</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Salesforce Enhanced Chat Custom UI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 
-<style>
-body{margin:0;height:100vh;font-family:sans-serif;background:#f4f6f9;}
-#landing-ui{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  height:100vh;
-}
-input{padding:15px;width:300px;font-size:16px;margin-bottom:10px;}
-button{padding:12px 30px;font-size:16px;}
-.embeddedservice_bootstrap .embeddedMessagingFrame{
-  position:fixed!important;top:0!important;left:0!important;
-  width:100vw!important;height:100vh!important;border:none!important;
-}
-</style>
+    <style>
+        #chat-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 300px;
+            z-index: 9999;
+        }
+        .btn-group {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+    </style>
 </head>
-
 <body>
 
-<div id="landing-ui">
-  <h1>Ask Agentforce</h1>
-  <input id="agentInput" placeholder="Type your request..." />
-  <button id="searchBtn" disabled>Loading...</button>
-  <p id="statusMsg">Initializing...</p>
+<div id="chat-container">
+    <h3>Contact Support</h3>
+    <p>How can we help you?</p>
+
+    <input type="text" id="chatInput" placeholder="Type your message here..." />
+    <button id="sendBtn">Start Chat</button>
+
+    <hr />
+
+    <p>Quick Options:</p>
+    <div class="btn-group">
+        <button id="orderButton">Check Order Status</button>
+        <button id="caseButton">Log a Case</button>
+    </div>
 </div>
 
 <script>
-let queuedMessage = "";
-let agentReady = false;
+function initEmbeddedMessaging() {
+    try {
+        embeddedservice_bootstrap.settings.language = 'en_US';
+        embeddedservice_bootstrap.settings.hideChatButtonOnLoad = true;
 
-/* ========= LOGGER ========= */
-function log(msg){
-  const t = new Date().toISOString().split('T')[1].slice(0,-1);
-  console.log("%c["+t+"] "+msg,"color:green;font-weight:bold;");
-  document.getElementById("statusMsg").innerText = msg;
-}
+        window.addEventListener("onEmbeddedMessagingConversationOpened", () => {
+            hideChatContainer();
+        });
 
-/* ========= WAIT FOR BOOTSTRAP ========= */
-const wait = setInterval(()=>{
-  if(window.embeddedservice_bootstrap){
-    clearInterval(wait);
-    initESW();
-  }
-},50);
+        window.addEventListener("onEmbeddedMessagingWindowClosed", () => {
+            showChatContainer();
+        });
 
-function initESW(){
-  log("Bootstrap detected → configuring");
+        window.addEventListener("onEmbeddedMessagingButtonCreated", () => {
+            showChatContainer();
+        });
 
-  embeddedservice_bootstrap.settings.language="en_US";
-  embeddedservice_bootstrap.settings.displayMode="inline";
-  embeddedservice_bootstrap.settings.hideChatButtonOnLoad=true;
-  embeddedservice_bootstrap.settings.disableAutoSessionRestore=true;
-
-  attachEvents();
-
-  embeddedservice_bootstrap.init(
-    "00DTA00000B1e6j",
-    "Web_AI_Agent",
-    "https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563",
-    { scrt2URL:"https://charlesdean--partialcop.sandbox.my.salesforce-scrt.com" }
-  );
-}
-
-/* ========= SALESFORCE EVENTS ========= */
-function attachEvents(){
-
-  window.addEventListener("onEmbeddedMessagingReady",()=>{
-    log("Event: Ready → enabling UI");
-    agentReady = true;
-    document.getElementById("searchBtn").disabled=false;
-    document.getElementById("searchBtn").innerText="Ask Agent";
-  });
-
-  // 🔥 THIS IS THE KEY EVENT
-  window.addEventListener("onEmbeddedMessagingConversationOpened",()=>{
-    log("Event: ConversationOpened → chat visible");
-
-    document.getElementById("landing-ui").style.display="none";
-
-    if(queuedMessage){
-      log("Waiting 3s before sending message...");
-      setTimeout(()=>{
-        log("Sending message: "+queuedMessage);
-        embeddedservice_bootstrap.utilAPI.sendTextMessage(queuedMessage)
-          .then(()=>log("Message sent"))
-          .catch(e=>log("Send failed: "+e));
-        queuedMessage="";
-      },3000);   // ← Salesforce proven delay
+        // ✅ YOUR NEW ORG CONFIG
+        embeddedservice_bootstrap.init(
+            '00DTA00000B1e6j',                 // Org Id
+            'Web_AI_Agent',                  // Deployment Name
+            'https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563',
+            {
+                scrt2URL: 'https://charlesdean--partialcop.sandbox.my.salesforce-scrt.com'
+            }
+        );
+    } catch (err) {
+        console.error('Error loading Embedded Messaging: ', err);
     }
-  });
-
-  window.addEventListener("onEmbeddedMessagingWindowClosed",()=>{
-    log("Event: WindowClosed → restoring UI");
-    document.getElementById("landing-ui").style.display="flex";
-    document.getElementById("agentInput").value="";
-  });
 }
 
-/* ========= USER ACTION ========= */
-document.addEventListener("DOMContentLoaded",()=>{
-  const btn=document.getElementById("searchBtn");
-  const input=document.getElementById("agentInput");
+function showChatContainer() {
+    const el = document.getElementById('chat-container');
+    if (el) el.style.display = 'block';
+}
 
-  input.addEventListener("input",()=>{
-    btn.disabled = !(input.value.trim() && agentReady);
-  });
+function hideChatContainer() {
+    const el = document.getElementById('chat-container');
+    if (el) el.style.display = 'none';
+}
 
-  function startChat(){
-    const text=input.value.trim();
-    if(!text) return;
-
-    queuedMessage=text;
-    log("User clicked send → launching chat");
-
+function launchChat(message) {
     embeddedservice_bootstrap.utilAPI.launchChat()
-      .then(()=>log("launchChat called"))
-      .catch(e=>log("launchChat error: "+e));
-  }
+        .then(() => {
+            if (message) {
+                sendMessageToChat(message);
+            }
+        })
+        .catch(console.error);
+}
 
-  btn.addEventListener("click",startChat);
-  input.addEventListener("keydown",e=>{
-    if(e.key==="Enter") startChat();
-  });
+function sendMessageToChat(message) {
+    setTimeout(() => {
+        embeddedservice_bootstrap.utilAPI.sendTextMessage(message)
+            .catch(console.error);
+    }, 2000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const sendBtn = document.getElementById('sendBtn');
+    const chatInput = document.getElementById('chatInput');
+    const orderButton = document.getElementById('orderButton');
+    const caseButton = document.getElementById('caseButton');
+
+    sendBtn.addEventListener('click', () => {
+        const msg = chatInput.value.trim();
+        if (msg) {
+            chatInput.value = "";
+            launchChat(msg);
+        }
+    });
+
+    chatInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendBtn.click();
+    });
+
+    orderButton.addEventListener('click', () => {
+        launchChat(orderButton.textContent.trim());
+    });
+
+    caseButton.addEventListener('click', () => {
+        launchChat(caseButton.textContent.trim());
+    });
 });
 </script>
 
-<script src="https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563/assets/js/bootstrap.min.js"></script>
+<!-- ✅ YOUR NEW BOOTSTRAP -->
+<script src='https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563/assets/js/bootstrap.min.js'
+        onload='initEmbeddedMessaging()'></script>
 
 </body>
 </html>
