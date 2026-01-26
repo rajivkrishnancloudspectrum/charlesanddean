@@ -2,248 +2,169 @@
 <html>
 <head>
 <meta charset="UTF-8" />
-<title>Agentforce Fixed Portal</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+<title>Agentforce Clean Working Portal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-  body { margin: 0; padding: 0; height: 100vh; width: 100vw; font-family: sans-serif; background: #f4f6f9; }
-  
-  /* LANDING UI STYLES */
-  #landing-ui {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    transition: opacity 0.3s ease;
-    position: relative;
-    z-index: 10;
-  }
-
-  h1 { color: #003e6b; margin-bottom: 20px; }
-  
-  input {
-    padding: 15px;
-    width: 300px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 16px;
-    margin-bottom: 10px;
-  }
-
-  button {
-    padding: 12px 30px;
-    background-color: #0070d2;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 16px;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-
-  button:disabled { background-color: #c9c7c5; cursor: not-allowed; }
-  button:hover:not(:disabled) { background-color: #005fb2; }
-
-  #statusMsg { margin-top: 20px; color: #555; font-size: 14px; min-height: 20px;}
-
-  /* * FIX: CSS VISIBILITY TOGGLE 
-   * We hide the chat container by default so it doesn't block clicks.
-   * We show it only when the 'chat-active' class is added.
-   */
-  .embeddedservice_bootstrap {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: -1; /* Behind everything initially */
-    opacity: 0;  /* Invisible */
-    pointer-events: none; /* Let clicks pass through */
-    transition: opacity 0.3s ease;
-  }
-
-  /* The Active State */
-  .embeddedservice_bootstrap.chat-active {
-    z-index: 9999; /* On top */
-    opacity: 1;    /* Visible */
-    pointer-events: all; /* Capture clicks */
-  }
-
-  /* Fix for the internal iframe sizing */
-  .embeddedservice_bootstrap .embeddedMessagingFrame {
-    width: 100%;
-    height: 100%;
-    border: none;
-  }
+body{
+  margin:0;
+  height:100vh;
+  font-family:sans-serif;
+  background:#f4f6f9;
+}
+#landing-ui{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  height:100vh;
+}
+input{
+  padding:15px;
+  width:320px;
+  font-size:16px;
+  margin-bottom:10px;
+}
+button{
+  padding:12px 30px;
+  font-size:16px;
+}
+.embeddedservice_bootstrap .embeddedMessagingFrame{
+  position:fixed!important;
+  top:0!important;
+  left:0!important;
+  width:100vw!important;
+  height:100vh!important;
+  border:none!important;
+}
 </style>
 </head>
 
 <body>
 
 <div id="landing-ui">
-  <h1>Agentforce Debug UI</h1>
-  <input id="agentInput" placeholder="Type your request..." autocomplete="off" />
-  <button id="searchBtn" disabled>Send</button>
-  <p id="statusMsg">Loading Agentforce...</p>
+  <h1>Ask Agentforce</h1>
+  <input id="agentInput" placeholder="Type your question..." autocomplete="off"/>
+  <button id="sendBtn" disabled>Loading Agent...</button>
+  <p id="statusMsg">Initializing...</p>
 </div>
 
 <script>
-/**
- * GLOBAL STATE
- */
-let capturedInput = ""; 
+/* ========= GLOBAL STATE ========= */
+let userInitiated = false;
+let queuedMessage = "";
+let agentReady = false;
 
-function log(msg) {
-  const time = new Date().toISOString().split('T')[1].slice(0, -1);
-  console.log(`%c[${time}] ${msg}`, "color: #0070d2; font-weight: bold;");
-  const statusEl = document.getElementById("statusMsg");
-  if(statusEl) statusEl.innerText = msg;
+/* ========= LOGGER ========= */
+function log(msg){
+  const t = new Date().toISOString().split('T')[1].slice(0,-1);
+  console.log("%c["+t+"] "+msg,"color:green;font-weight:bold;");
+  document.getElementById("statusMsg").innerText = msg;
 }
 
-/**
- * 1. INIT LOOP
- * Wait for Salesforce bootstrap script to load
- */
-const initInterval = setInterval(() => {
-  if (window.embeddedservice_bootstrap) {
-    clearInterval(initInterval);
-    log("Bootstrap detected. Configuring...");
-    initEmbeddedMessaging();
-  }
-}, 50);
+/* ========= CONFIG BEFORE INIT ========= */
+function initESW(){
+  embeddedservice_bootstrap.settings.language = "en_US";
+  embeddedservice_bootstrap.settings.displayMode = "inline";
+  embeddedservice_bootstrap.settings.hideChatButtonOnLoad = true;
+  embeddedservice_bootstrap.settings.disableAutoSessionRestore = true;
 
-function initEmbeddedMessaging() {
-  try {
-    // Transcript Recommendation: Hide default UI logic
-    embeddedservice_bootstrap.settings.language = "en_US";
-    embeddedservice_bootstrap.settings.displayMode = "inline";
-    embeddedservice_bootstrap.settings.hideChatButtonOnLoad = true; 
-    embeddedservice_bootstrap.settings.disableAutoSessionRestore = true; 
+  attachEvents();
 
-    // Attach Event Listeners
-    attachEventListeners();
-
-    // Init Salesforce
-    embeddedservice_bootstrap.init(
-      "00DTA00000B1e6j",
-      "Web_AI_Agent",
-      "https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563",
-      { scrt2URL: "https://charlesdean--partialcop.sandbox.my.salesforce-scrt.com" }
-    );
-  } catch (error) {
-    log("Error during setup: " + error.message);
-  }
+  embeddedservice_bootstrap.init(
+    "00DTA00000B1e6j",
+    "Web_AI_Agent",
+    "https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563",
+    { scrt2URL:"https://charlesdean--partialcop.sandbox.my.salesforce-scrt.com" }
+  );
 }
 
-/**
- * 2. EVENT LISTENERS (The "Golden Path")
- */
-function attachEventListeners() {
-  
-  // A. ENABLE UI: Transcript suggests 'ButtonCreated' or 'Ready'
-  // We use ButtonCreated to be safe, falling back to Ready if needed.
-  window.addEventListener("onEmbeddedMessagingButtonCreated", () => {
-    log("Event: ButtonCreated. UI Ready.");
-    enableLandingUI();
-  });
-  
-  window.addEventListener("onEmbeddedMessagingReady", () => {
-    log("Event: Ready. UI Ready.");
-    enableLandingUI();
+/* ========= SALESFORCE EVENTS ========= */
+function attachEvents(){
+
+  window.addEventListener("onEmbeddedMessagingReady",()=>{
+    log("Event: Ready");
+    agentReady = true;
+    document.getElementById("sendBtn").disabled = false;
+    document.getElementById("sendBtn").innerText = "Ask Agent";
   });
 
-  function enableLandingUI() {
-    document.getElementById("searchBtn").disabled = false;
-    document.getElementById("statusMsg").innerText = "Agent Ready. Type to start.";
-  }
+  window.addEventListener("onEmbeddedMessagingConversationOpened",()=>{
+    log("Event: ConversationOpened");
 
-  // B. SWITCH VIEW: User Launched Chat -> Hide Landing, Show Chat
-  window.addEventListener("onEmbeddedMessagingConversationOpened", () => {
-    log("Event: ConversationOpened. Switching to Chat View.");
-    
-    // Hide Landing
-    document.getElementById("landing-ui").style.display = "none";
-    
-    // Show Chat (Add Class)
-    const bootstrapEl = document.querySelector(".embeddedservice_bootstrap");
-    if(bootstrapEl) bootstrapEl.classList.add("chat-active");
+    // 🔴 Ignore restores and background loads
+    if(!userInitiated){
+      log("Ignoring — user did not start this");
+      return;
+    }
+
+    document.getElementById("landing-ui").style.display="none";
   });
 
-  // C. SEND MESSAGE: The Critical Step
-  window.addEventListener("onEmbeddedMessagingConversationStarted", () => {
-    log("Event: ConversationStarted.");
-    
-    if (capturedInput) {
-      log(`Scheduling message send: "${capturedInput}"`);
-      
-      // SAFETY DELAY: Transcript recommends 3-5s. We use 1s as a middle ground.
-      // This ensures the backend session is fully writeable.
-      setTimeout(() => {
-          embeddedservice_bootstrap.utilAPI.sendTextMessage(capturedInput)
-            .then(() => {
-                log("Message sent successfully.");
-                capturedInput = ""; 
-            })
-            .catch(err => log("Failed to send: " + err));
-      }, 1000); 
+  window.addEventListener("onEmbeddedMessagingConversationStarted",()=>{
+    log("Event: ConversationStarted");
+
+    if(!userInitiated) return;
+
+    if(queuedMessage){
+      log("Sending message: "+queuedMessage);
+
+      setTimeout(()=>{
+        embeddedservice_bootstrap.utilAPI.sendTextMessage(queuedMessage)
+          .then(()=>log("Message sent"))
+          .catch(e=>log("Send failed: "+e));
+        queuedMessage="";
+      },500);
     }
   });
 
-  // D. RESTORE VIEW: User Closed Chat -> Show Landing
-  window.addEventListener("onEmbeddedMessagingWindowClosed", () => {
-    log("Event: WindowClosed. Restoring Landing View.");
-    
-    // Hide Chat
-    const bootstrapEl = document.querySelector(".embeddedservice_bootstrap");
-    if(bootstrapEl) bootstrapEl.classList.remove("chat-active");
+  window.addEventListener("onEmbeddedMessagingWindowClosed",()=>{
+    log("Event: WindowClosed → restoring UI");
 
-    // Show Landing
-    document.getElementById("landing-ui").style.display = "flex";
-    document.getElementById("agentInput").value = "";
-    document.getElementById("statusMsg").innerText = "Ready for new chat.";
-    capturedInput = "";
+    userInitiated = false;
+    queuedMessage = "";
+
+    document.getElementById("landing-ui").style.display="flex";
+    document.getElementById("agentInput").value="";
   });
 }
 
-/**
- * 3. TRIGGER LOGIC
- */
-document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("searchBtn");
-  const input = document.getElementById("agentInput");
+/* ========= WAIT FOR BOOTSTRAP ========= */
+const wait = setInterval(()=>{
+  if(window.embeddedservice_bootstrap){
+    clearInterval(wait);
+    initESW();
+  }
+},50);
 
-  // Validate Input
-  input.addEventListener("input", (e) => {
-    // Simple validation
-    const hasText = e.target.value.trim().length > 0;
-    const isReady = document.getElementById("statusMsg").innerText.includes("Ready");
-    btn.disabled = !(hasText && isReady);
+/* ========= USER ACTION ========= */
+document.addEventListener("DOMContentLoaded",()=>{
+  const btn=document.getElementById("sendBtn");
+  const input=document.getElementById("agentInput");
+
+  input.addEventListener("input",()=>{
+    btn.disabled = !(input.value.trim() && agentReady);
   });
 
-  // Handle Enter Key
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !btn.disabled) {
-      launchAgent();
-    }
-  });
+  function startChat(){
+    const text=input.value.trim();
+    if(!text) return;
 
-  btn.addEventListener("click", launchAgent);
+    userInitiated = true;
+    queuedMessage = text;
 
-  function launchAgent() {
-    const text = input.value.trim();
-    if (!text) return;
+    log("User clicked → launching chat");
 
-    capturedInput = text;
-    log("Launching Agentforce...");
-    
-    // Trigger the platform
     embeddedservice_bootstrap.utilAPI.launchChat()
-      .then(() => log("launchChat() initiated."))
-      .catch((e) => log("launchChat failed: " + e));
+      .then(()=>log("launchChat called"))
+      .catch(e=>log("launchChat error: "+e));
   }
-});
 
+  btn.addEventListener("click",startChat);
+  input.addEventListener("keydown",e=>{
+    if(e.key==="Enter") startChat();
+  });
+});
 </script>
 
 <script src="https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563/assets/js/bootstrap.min.js"></script>
