@@ -2,97 +2,23 @@
 <html>
 <head>
 <meta charset="UTF-8" />
-<title>Agentforce AI Portal</title>
+<title>Agentforce Debug Portal</title>
 
 <style>
-body{
-  margin:0;
-  padding:0;
-  height:100vh;
-  width:100vw;
-  overflow:hidden;
-  font-family:-apple-system, sans-serif;
-  background:#ffffff;
-}
-
-#landing-ui{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  height:100vh;
-}
-
-#embeddedMessagingContainer{
-  position:fixed;
-  top:0; left:0;
-  width:100vw;
-  height:100vh;
-  background:white;
-  z-index:9999;
-  display:none;
-}
-
-#closeChatBtn{
-  display:none;
-  position:fixed;
-  top:20px;
-  right:20px;
-  z-index:10000;
-  background:#202123;
-  color:white;
-  border:none;
-  border-radius:50%;
-  width:42px;
-  height:42px;
-  font-size:20px;
-  cursor:pointer;
-}
-
-.searchBox{
-  display:inline-flex;
-  width:100%;
-  max-width:700px;
-  justify-content:center;
-}
-
-input{
-  height:60px;
-  font-size:20px;
-  width:85%;
-  padding:0 30px;
-  border-radius:35px 0 0 35px;
-  border:1px solid #d1d5db;
-  outline:none;
-}
-
-button{
-  width:80px;
-  border:none;
-  border-radius:0 35px 35px 0;
-  font-size:24px;
-  background:#ccc;
-  color:white;
-  cursor:not-allowed;
-}
+body{margin:0;padding:0;height:100vh;width:100vw;font-family:sans-serif;}
+#landing-ui{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;}
+#embeddedMessagingContainer{position:fixed;top:0;left:0;width:100vw;height:100vh;background:#fff;z-index:9999;display:none;}
+#closeChatBtn{display:none;position:fixed;top:20px;right:20px;z-index:10000;background:#202123;color:#fff;border:none;border-radius:50%;width:42px;height:42px;font-size:20px;cursor:pointer;}
 </style>
 </head>
 
 <body>
 
 <div id="landing-ui">
-  <h1 style="font-size:48px; font-weight:700; margin-bottom:20px;">
-    How can <span style="color:#0070d2;">Agentforce</span> help?
-  </h1>
-
-  <div class="searchBox">
-    <input id="agentInput" placeholder="Type your request..." />
-    <button id="searchBtn" disabled>↑</button>
-  </div>
-
-  <p id="statusMsg" style="margin-top:15px; color:#666;">
-    Initializing Agent…
-  </p>
+  <h1>Agentforce Debug UI</h1>
+  <input id="agentInput" placeholder="Type your request..." />
+  <button id="searchBtn" disabled>Send</button>
+  <p id="statusMsg">Initializing Agent…</p>
 </div>
 
 <div id="embeddedMessagingContainer"></div>
@@ -102,39 +28,47 @@ button{
 let capturedInput = "";
 let chatLaunched = false;
 
+function log(msg){
+  console.log("%c[DEBUG] " + msg, "color:green;font-weight:bold;");
+}
+
 /* ================= INIT ESW ================= */
 function initEmbeddedMessaging() {
+
+  log("initEmbeddedMessaging() called");
 
   embeddedservice_bootstrap.settings.language = "en_US";
   embeddedservice_bootstrap.settings.hideChatButtonOnLoad = true;
 
-  // ⭐ Set inline ONLY when ESW is ready (prevents auto launch)
-  window.addEventListener("onEmbeddedMessagingReady", () => {
-    embeddedservice_bootstrap.settings.displayMode = "inline";
-    embeddedservice_bootstrap.settings.targetElement =
+  // CRITICAL placement
+  embeddedservice_bootstrap.settings.displayMode = "inline";
+  embeddedservice_bootstrap.settings.targetElement =
       document.getElementById("embeddedMessagingContainer");
 
-    const btn = document.getElementById("searchBtn");
-    const msg = document.getElementById("statusMsg");
+  log("Inline + targetElement set BEFORE init");
 
-    btn.disabled = false;
-    btn.style.background = "#202123";
-    btn.style.cursor = "pointer";
-    msg.innerText = "Agent is ready. Type your question.";
+  window.addEventListener("onEmbeddedMessagingReady", () => {
+    log("Event: onEmbeddedMessagingReady");
+
+    document.getElementById("searchBtn").disabled = false;
+    document.getElementById("statusMsg").innerText = "Agent Ready";
   });
 
-  // Chat opened
   window.addEventListener("onEmbeddedMessagingConversationOpened", () => {
+    log("Event: Conversation Opened");
 
-    const wait = setInterval(() => {
-      if(document.querySelector(".embeddedMessagingFrame")){
+    const wait = setInterval(()=>{
+      const frame = document.querySelector(".embeddedMessagingFrame");
+      if(frame){
         clearInterval(wait);
+        log("Iframe detected in DOM");
 
         document.getElementById("landing-ui").style.display = "none";
         document.getElementById("embeddedMessagingContainer").style.display = "block";
         document.getElementById("closeChatBtn").style.display = "block";
 
         if(capturedInput){
+          log("Sending message to chat: " + capturedInput);
           embeddedservice_bootstrap.utilAPI.sendTextMessage(capturedInput);
           capturedInput = "";
         }
@@ -142,63 +76,84 @@ function initEmbeddedMessaging() {
     },100);
   });
 
-  // Handle Salesforce minimize OR close
-  const restoreUI = () => {
+  const restoreUI = (source) => {
+    log("Restore UI triggered by: " + source);
     chatLaunched = false;
     document.getElementById("embeddedMessagingContainer").style.display = "none";
     document.getElementById("landing-ui").style.display = "flex";
     document.getElementById("closeChatBtn").style.display = "none";
   };
 
-  window.addEventListener("onEmbeddedMessagingWindowClosed", restoreUI);
-  window.addEventListener("onEmbeddedMessagingWindowMinimized", restoreUI);
+  window.addEventListener("onEmbeddedMessagingWindowClosed", ()=>restoreUI("WindowClosed"));
+  window.addEventListener("onEmbeddedMessagingWindowMinimized", ()=>restoreUI("WindowMinimized"));
 
   embeddedservice_bootstrap.init(
     "00DTA00000B1e6j",
     "Web_AI_Agent",
     "https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563",
-    {
-      scrt2URL: "https://charlesdean--partialcop.sandbox.my.salesforce-scrt.com"
-    }
+    { scrt2URL: "https://charlesdean--partialcop.sandbox.my.salesforce-scrt.com" }
   );
+
+  log("embeddedservice_bootstrap.init() called");
 }
 
-/* ================= USER ACTION ================= */
+/* ================= USER INTERACTION ================= */
 document.addEventListener("DOMContentLoaded", () => {
+
+  log("DOM fully loaded");
 
   const btn = document.getElementById("searchBtn");
   const input = document.getElementById("agentInput");
   const closeBtn = document.getElementById("closeChatBtn");
 
   input.addEventListener("input", () => {
+    log("User typing: " + input.value);
     btn.disabled = !input.value.trim();
   });
 
   const startChat = () => {
-    if(chatLaunched) return;
+    log("startChat() triggered");
+
+    if(chatLaunched){
+      log("Chat already launched — ignoring");
+      return;
+    }
+
     const text = input.value.trim();
-    if(!text) return;
+    if(!text){
+      log("No text entered");
+      return;
+    }
 
     capturedInput = text;
     input.value = "";
     chatLaunched = true;
 
+    log("Calling launchChat()");
     embeddedservice_bootstrap.utilAPI.launchChat();
   };
 
-  btn.addEventListener("click", startChat);
+  btn.addEventListener("click", () => {
+    log("Send button clicked");
+    startChat();
+  });
+
   input.addEventListener("keydown", e => {
-    if(e.key === "Enter") startChat();
+    if(e.key === "Enter"){
+      log("Enter key pressed");
+      startChat();
+    }
   });
 
-  // Custom X ends session
   closeBtn.addEventListener("click", () => {
+    log("Custom X clicked → ending session");
     embeddedservice_bootstrap.utilAPI.sendTextMessage("end");
-    setTimeout(() => {
-      embeddedservice_bootstrap.utilAPI.endChat();
-    }, 400);
-  });
 
+    setTimeout(()=>{
+      log("Calling endChat()");
+      embeddedservice_bootstrap.utilAPI.endChat();
+    },400);
+  });
 });
 </script>
 
@@ -206,17 +161,6 @@ document.addEventListener("DOMContentLoaded", () => {
 src="https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563/assets/js/bootstrap.min.js"
 onload="initEmbeddedMessaging()">
 </script>
-
-<style>
-.embeddedservice_bootstrap .embeddedMessagingFrame{
-  position:fixed !important;
-  top:0 !important;
-  left:0 !important;
-  width:100vw !important;
-  height:100vh !important;
-  border:none !important;
-}
-</style>
 
 </body>
 </html>
