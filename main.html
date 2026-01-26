@@ -1,69 +1,70 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Agentforce AI Portal</title>
+<meta charset="UTF-8" />
+<title>Agentforce AI Portal</title>
 
-  <style>
-    body {
-      margin:0;
-      padding:0;
-      height:100vh;
-      width:100vw;
-      overflow:hidden;
-      font-family:-apple-system, sans-serif;
-      background:#ffffff;
-    }
+<style>
+body{
+  margin:0;
+  padding:0;
+  height:100vh;
+  width:100vw;
+  overflow:hidden;
+  font-family:-apple-system, sans-serif;
+  background:#ffffff;
+}
 
-    #landing-ui{
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      height:100vh;
-    }
+#landing-ui{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  height:100vh;
+}
 
-    #embeddedMessagingContainer{
-      display:none;
-      position:fixed;
-      top:0; left:0;
-      width:100vw;
-      height:100vh;
-      background:white;
-      z-index:9999;
-    }
+#embeddedMessagingContainer{
+  position:fixed;
+  top:0; left:0;
+  width:100vw;
+  height:100vh;
+  background:white;
+  z-index:9999;
+  display:none;
+}
 
-    .searchBox{
-      display:inline-flex;
-      width:100%;
-      max-width:700px;
-      justify-content:center;
-    }
+.searchBox{
+  display:inline-flex;
+  width:100%;
+  max-width:700px;
+  justify-content:center;
+}
 
-    input{
-      height:60px;
-      font-size:20px;
-      width:85%;
-      padding:0 30px;
-      border-radius:35px 0 0 35px;
-      border:1px solid #d1d5db;
-      outline:none;
-    }
+input{
+  height:60px;
+  font-size:20px;
+  width:85%;
+  padding:0 30px;
+  border-radius:35px 0 0 35px;
+  border:1px solid #d1d5db;
+  outline:none;
+}
 
-    button{
-      width:80px;
-      border:none;
-      border-radius:0 35px 35px 0;
-      font-size:24px;
-      background:#ccc;
-      color:white;
-      cursor:not-allowed;
-    }
-  </style>
+button{
+  width:80px;
+  border:none;
+  border-radius:0 35px 35px 0;
+  font-size:24px;
+  background:#ccc;
+  color:white;
+  cursor:not-allowed;
+}
+</style>
 </head>
 
 <body>
 
+<!-- SEARCH UI -->
 <div id="landing-ui">
   <h1 style="font-size:48px; font-weight:700; margin-bottom:20px;">
     How can <span style="color:#0070d2;">Agentforce</span> help?
@@ -79,18 +80,24 @@
   </p>
 </div>
 
+<!-- CHAT CONTAINER -->
 <div id="embeddedMessagingContainer"></div>
 
 <script>
 let capturedInput = "";
 let chatLaunched = false;
 
+/* ================= INIT ESW ================= */
 function initEmbeddedMessaging() {
 
+  // ⭐ MUST be set BEFORE init()
   embeddedservice_bootstrap.settings.language = "en_US";
   embeddedservice_bootstrap.settings.hideChatButtonOnLoad = true;
+  embeddedservice_bootstrap.settings.displayMode = "inline";
+  embeddedservice_bootstrap.settings.targetElement =
+    document.getElementById("embeddedMessagingContainer");
 
-  // ESW Ready
+  // ESW ready
   window.addEventListener("onEmbeddedMessagingReady", () => {
     const btn = document.getElementById("searchBtn");
     const msg = document.getElementById("statusMsg");
@@ -101,19 +108,20 @@ function initEmbeddedMessaging() {
     msg.innerText = "Agent is ready. Type your question.";
   });
 
-  // Conversation opened → wait for iframe → THEN hide UI and send text
+  // Conversation opened
   window.addEventListener("onEmbeddedMessagingConversationOpened", () => {
 
+    // Wait until iframe is actually mounted
     const waitForIframe = setInterval(() => {
       const frame = document.querySelector(".embeddedMessagingFrame");
 
-      if (frame) {
+      if(frame){
         clearInterval(waitForIframe);
 
         document.getElementById("landing-ui").style.display = "none";
         document.getElementById("embeddedMessagingContainer").style.display = "block";
 
-        if (capturedInput) {
+        if(capturedInput){
           embeddedservice_bootstrap.utilAPI.sendTextMessage(capturedInput);
           capturedInput = "";
         }
@@ -131,6 +139,7 @@ function initEmbeddedMessaging() {
   );
 }
 
+/* ================= USER INTERACTION ================= */
 document.addEventListener("DOMContentLoaded", () => {
 
   const btn = document.getElementById("searchBtn");
@@ -156,11 +165,6 @@ document.addEventListener("DOMContentLoaded", () => {
     input.value = "";
     chatLaunched = true;
 
-    // Set inline mode ONLY now
-    embeddedservice_bootstrap.settings.displayMode = "inline";
-    embeddedservice_bootstrap.settings.targetElement =
-      document.getElementById("embeddedMessagingContainer");
-
     embeddedservice_bootstrap.utilAPI.launchChat();
   };
 
@@ -173,8 +177,8 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 
 <script
-  src="https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563/assets/js/bootstrap.min.js"
-  onload="initEmbeddedMessaging()">
+src="https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563/assets/js/bootstrap.min.js"
+onload="initEmbeddedMessaging()">
 </script>
 
 <style>
