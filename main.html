@@ -26,6 +26,7 @@ body{margin:0;padding:0;height:100vh;width:100vw;font-family:sans-serif;}
 <script>
 let capturedInput = "";
 let chatLaunched = false;
+let frameWatcher = null;
 
 function log(msg){
   console.log(
@@ -61,21 +62,26 @@ function initEmbeddedMessaging(){
 
   log("Settings applied BEFORE init");
 
+  /* ========== READY EVENT ========== */
   window.addEventListener("onEmbeddedMessagingReady", () => {
-    log("Event: onEmbeddedMessagingReady → enabling UI");
+    log("Event: onEmbeddedMessagingReady");
     document.getElementById("searchBtn").disabled = false;
     document.getElementById("statusMsg").innerText = "Agent Ready";
   });
 
-  /* 🔥 CRITICAL FIX — SEND ONLY AFTER IFRAME EXISTS */
+  /* ========== CONVERSATION OPENED ========== */
   window.addEventListener("onEmbeddedMessagingConversationOpened", () => {
-    log("Event: ConversationOpened → hiding landing UI");
+    log("Event: ConversationOpened");
     document.getElementById("landing-ui").style.display = "none";
 
-    const waitForFrame = setInterval(() => {
+    // Prevent multiple watchers
+    if(frameWatcher) clearInterval(frameWatcher);
+
+    frameWatcher = setInterval(() => {
       const frame = document.querySelector(".embeddedMessagingFrame");
       if(frame && capturedInput){
-        clearInterval(waitForFrame);
+        clearInterval(frameWatcher);
+        frameWatcher = null;
 
         log("Iframe detected → sending message: " + capturedInput);
         embeddedservice_bootstrap.utilAPI.sendTextMessage(capturedInput);
@@ -84,14 +90,15 @@ function initEmbeddedMessaging(){
     }, 100);
   });
 
+  /* ========== WINDOW EVENTS ========== */
   window.addEventListener("onEmbeddedMessagingWindowMinimized", () => {
-    log("Event: WindowMinimized → restoring UI");
-    restoreUI();
+    log("Event: WindowMinimized");
+    restoreUI("Minimized");
   });
 
   window.addEventListener("onEmbeddedMessagingWindowClosed", () => {
-    log("Event: WindowClosed → restoring UI");
-    restoreUI();
+    log("Event: WindowClosed");
+    restoreUI("Closed");
   });
 
   embeddedservice_bootstrap.init(
@@ -104,8 +111,12 @@ function initEmbeddedMessaging(){
   log("embeddedservice_bootstrap.init() called");
 }
 
-function restoreUI(){
+function restoreUI(source){
+  log("restoreUI() triggered by: " + source);
   chatLaunched = false;
+  capturedInput = "";
+  if(frameWatcher) clearInterval(frameWatcher);
+  frameWatcher = null;
   document.getElementById("landing-ui").style.display = "flex";
 }
 
@@ -127,6 +138,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if(chatLaunched){
       log("Chat already launched — ignoring");
+      return;
+    }
+
+    if(!window.embeddedservice_bootstrap?.utilAPI){
+      log("utilAPI not ready yet");
       return;
     }
 
