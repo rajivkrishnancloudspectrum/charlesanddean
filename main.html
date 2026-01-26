@@ -101,15 +101,24 @@ function initEmbeddedMessaging() {
     msg.innerText = "Agent is ready. Type your question.";
   });
 
-  // Conversation opened → send message
+  // Conversation opened → wait for iframe → THEN hide UI and send text
   window.addEventListener("onEmbeddedMessagingConversationOpened", () => {
-    document.getElementById("landing-ui").style.display = "none";
-    document.getElementById("embeddedMessagingContainer").style.display = "block";
 
-    if(capturedInput){
-      embeddedservice_bootstrap.utilAPI.sendTextMessage(capturedInput);
-      capturedInput = "";
-    }
+    const waitForIframe = setInterval(() => {
+      const frame = document.querySelector(".embeddedMessagingFrame");
+
+      if (frame) {
+        clearInterval(waitForIframe);
+
+        document.getElementById("landing-ui").style.display = "none";
+        document.getElementById("embeddedMessagingContainer").style.display = "block";
+
+        if (capturedInput) {
+          embeddedservice_bootstrap.utilAPI.sendTextMessage(capturedInput);
+          capturedInput = "";
+        }
+      }
+    }, 100);
   });
 
   embeddedservice_bootstrap.init(
