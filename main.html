@@ -26,7 +26,8 @@ body{margin:0;padding:0;height:100vh;width:100vw;font-family:sans-serif;}
 <script>
 let capturedInput = "";
 let chatLaunched = false;
-let frameWatcher = null;
+let waitingToSend = false;
+let readyCount = 0;
 
 function log(msg){
   console.log(
@@ -64,41 +65,40 @@ function initEmbeddedMessaging(){
 
   /* ========== READY EVENT ========== */
   window.addEventListener("onEmbeddedMessagingReady", () => {
-    log("Event: onEmbeddedMessagingReady");
-    document.getElementById("searchBtn").disabled = false;
-    document.getElementById("statusMsg").innerText = "Agent Ready";
+    readyCount++;
+    log("Event: onEmbeddedMessagingReady → count: " + readyCount);
+
+    // First ready → just enable UI
+    if(!chatLaunched){
+      document.getElementById("searchBtn").disabled = false;
+      document.getElementById("statusMsg").innerText = "Agent Ready";
+      return;
+    }
+
+    // Second ready → chat engine fully ready
+    if(waitingToSend && capturedInput){
+      log("Ready after Conversation → sending message: " + capturedInput);
+      embeddedservice_bootstrap.utilAPI.sendTextMessage(capturedInput);
+      capturedInput = "";
+      waitingToSend = false;
+    }
   });
 
   /* ========== CONVERSATION OPENED ========== */
   window.addEventListener("onEmbeddedMessagingConversationOpened", () => {
-    log("Event: ConversationOpened");
+    log("Event: ConversationOpened → hiding landing UI");
     document.getElementById("landing-ui").style.display = "none";
-
-    // Prevent multiple watchers
-    if(frameWatcher) clearInterval(frameWatcher);
-
-    frameWatcher = setInterval(() => {
-      const frame = document.querySelector(".embeddedMessagingFrame");
-      if(frame && capturedInput){
-        clearInterval(frameWatcher);
-        frameWatcher = null;
-
-        log("Iframe detected → sending message: " + capturedInput);
-        embeddedservice_bootstrap.utilAPI.sendTextMessage(capturedInput);
-        capturedInput = "";
-      }
-    }, 100);
+    waitingToSend = true;
   });
 
   /* ========== WINDOW EVENTS ========== */
-  window.addEventListener("onEmbeddedMessagingWindowMinimized", () => {
-    log("Event: WindowMinimized");
-    restoreUI("Minimized");
+  window.addEventListener("onEmbeddedMessagingWindowClosed", () => {
+    log("Event: WindowClosed → restoring UI");
+    restoreUI();
   });
 
-  window.addEventListener("onEmbeddedMessagingWindowClosed", () => {
-    log("Event: WindowClosed");
-    restoreUI("Closed");
+  window.addEventListener("onEmbeddedMessagingWindowMinimized", () => {
+    log("Event: WindowMinimized (session still alive)");
   });
 
   embeddedservice_bootstrap.init(
@@ -111,12 +111,10 @@ function initEmbeddedMessaging(){
   log("embeddedservice_bootstrap.init() called");
 }
 
-function restoreUI(source){
-  log("restoreUI() triggered by: " + source);
+function restoreUI(){
+  log("restoreUI()");
   chatLaunched = false;
-  capturedInput = "";
-  if(frameWatcher) clearInterval(frameWatcher);
-  frameWatcher = null;
+  waitingToSend = false;
   document.getElementById("landing-ui").style.display = "flex";
 }
 
