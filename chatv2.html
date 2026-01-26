@@ -15,7 +15,6 @@
             justify-content:center;
         }
 
-        /* ===== Center ChatGPT Style ===== */
         #chat-container{
             width:720px;
             max-width:90%;
@@ -86,7 +85,7 @@
             border-color:#0d1b2a;
         }
 
-        /* ===== Fullscreen Salesforce Messaging ===== */
+        /* Fullscreen Salesforce Messaging */
         .embeddedMessagingFrame{
             position:fixed !important;
             top:0 !important;
@@ -141,18 +140,33 @@ function makeMessagingFullScreen(){
     },200);
 }
 
+function showHome(){
+    document.getElementById('chat-container').style.display='block';
+}
+
+function hideHome(){
+    document.getElementById('chat-container').style.display='none';
+}
+
 function initEmbeddedMessaging(){
     try{
         embeddedservice_bootstrap.settings.language='en_US';
         embeddedservice_bootstrap.settings.hideChatButtonOnLoad=true;
 
+        // Chat opened
         window.addEventListener("onEmbeddedMessagingConversationOpened",()=>{
-            document.getElementById('chat-container').style.display='none';
+            hideHome();
             makeMessagingFullScreen();
         });
 
+        // Chat closed
         window.addEventListener("onEmbeddedMessagingWindowClosed",()=>{
-            document.getElementById('chat-container').style.display='block';
+            showHome();
+        });
+
+        // Chat minimized  ✅ FIX
+        window.addEventListener("onEmbeddedMessagingWindowMinimized",()=>{
+            showHome();
         });
 
         embeddedservice_bootstrap.init(
