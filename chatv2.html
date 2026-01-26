@@ -32,6 +32,23 @@
             box-sizing: border-box;
             margin-bottom: 10px;
         }
+
+        /* ✅ Resize Salesforce Messaging Window */
+        .embeddedMessagingFrame {
+            width: 520px !important;
+            height: 720px !important;
+            max-height: 90vh !important;
+            border-radius: 12px !important;
+        }
+
+        .embeddedMessagingConversation {
+            width: 520px !important;
+            height: 720px !important;
+        }
+
+        .embeddedMessagingFrame iframe {
+            border-radius: 12px !important;
+        }
     </style>
 </head>
 <body>
@@ -53,6 +70,17 @@
 </div>
 
 <script>
+function resizeMessagingWindow() {
+    const interval = setInterval(() => {
+        const frame = document.querySelector('.embeddedMessagingFrame');
+        if (frame) {
+            frame.style.width = "520px";
+            frame.style.height = "720px";
+            clearInterval(interval);
+        }
+    }, 300);
+}
+
 function initEmbeddedMessaging() {
     try {
         embeddedservice_bootstrap.settings.language = 'en_US';
@@ -60,6 +88,7 @@ function initEmbeddedMessaging() {
 
         window.addEventListener("onEmbeddedMessagingConversationOpened", () => {
             hideChatContainer();
+            resizeMessagingWindow(); // ✅ resize when chat opens
         });
 
         window.addEventListener("onEmbeddedMessagingWindowClosed", () => {
@@ -70,10 +99,9 @@ function initEmbeddedMessaging() {
             showChatContainer();
         });
 
-        // ✅ YOUR NEW ORG CONFIG
         embeddedservice_bootstrap.init(
-            '00DTA00000B1e6j',                 // Org Id
-            'Web_AI_Agent',                  // Deployment Name
+            '00DTA00000B1e6j',
+            'Web_AI_Agent',
             'https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563',
             {
                 scrt2URL: 'https://charlesdean--partialcop.sandbox.my.salesforce-scrt.com'
@@ -139,7 +167,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
-<!-- ✅ YOUR NEW BOOTSTRAP -->
 <script src='https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563/assets/js/bootstrap.min.js'
         onload='initEmbeddedMessaging()'></script>
 
