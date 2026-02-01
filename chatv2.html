@@ -43,8 +43,7 @@
         .quick-btn:hover{
             background:#0d1b2a; color:white; border-color:#0d1b2a;
         }
-        
-        /* UPDATED CSS TO REMOVE GAPS */
+        /* Full-Screen CSS Overrides to remove all gaps */
         .embeddedMessagingFrame {
             position: fixed !important;
             top: 0 !important;
@@ -92,7 +91,6 @@ let botGreetingSeen = false;
 function hideHome(){ document.getElementById('chat-container').style.display='none'; }
 function showHome(){ document.getElementById('chat-container').style.display='block'; }
 
-// REFINED JS OVERRIDE
 function makeMessagingFullScreen(){
     const interval=setInterval(()=>{
         const frame=document.querySelector('.embeddedMessagingFrame');
@@ -110,6 +108,7 @@ function initEmbeddedMessaging(){
     try{
         embeddedservice_bootstrap.settings.language='en_US';
         embeddedservice_bootstrap.settings.hideChatButtonOnLoad=true;
+        // Initialize the messaging bootstrap
         embeddedservice_bootstrap.init(
             '00DTA00000B1e6j',
             'Web_AI_Agent',
@@ -132,9 +131,10 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
     });
 
     window.addEventListener("onEmbeddedMessagingWindowClosed",()=>{
-        console.log("Chat closed - Resetting state...");
+        console.log("Chat closed - Redirecting to home and refreshing...");
         botGreetingSeen = false;
-        showHome();
+        // Perform Redirect and Refresh
+        window.location.href = window.location.origin + window.location.pathname;
     });
 
     window.addEventListener("onEmbeddedMessagingWindowMinimized",()=>{
@@ -159,23 +159,31 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
         const entry = event.detail?.conversationEntry;
         if (!entry) return;
         console.log("📩 Debug Entry Type:", entry.entryType);
+        // Backup Trigger for Bot Message
         if (entry.entryType === "Message" && entry.sender?.role !== "EndUser") {
             startSendSequence("BotMessageReceived");
         }
     });
 });
 
+/**
+ * Initiates the sending process with a 12-second delay for stability
+ */
 function startSendSequence(triggerSource) {
     if (!pendingMessage || botGreetingSeen) return;
+
     console.log(`🚀 Triggered via ${triggerSource}.`);
+    console.log("🕒 Waiting 12 seconds to bypass sandbox load issues...");
+    
     botGreetingSeen = true;
+
     setTimeout(() => {
         if (pendingMessage) {
             console.log("📡 Timer expired. Sending message:", pendingMessage);
             embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
-            pendingMessage = null;
+            pendingMessage = null; // Reset message after sending
         }
-    }, 7000); 
+    }, 12000); // Exact 12 Second Delay
 }
 
 function launchChat(message){
@@ -190,6 +198,7 @@ function launchChat(message){
 document.addEventListener('DOMContentLoaded',()=>{
     const sendBtn = document.getElementById('sendBtn');
     const chatInput = document.getElementById('chatInput');
+
     sendBtn.addEventListener('click',()=>{
         const msg = chatInput.value.trim();
         if(msg){
@@ -197,9 +206,12 @@ document.addEventListener('DOMContentLoaded',()=>{
             launchChat(msg);
         }
     });
+
     chatInput.addEventListener("keypress",(e)=>{
         if(e.key === "Enter") sendBtn.click();
     });
+
+    // Quick Button Action Listeners
     document.getElementById('orderButton').addEventListener('click', function() { launchChat(this.textContent.trim()); });
     document.getElementById('caseButton').addEventListener('click', function() { launchChat(this.textContent.trim()); });
 });
