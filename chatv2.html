@@ -121,7 +121,7 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
 
     window.addEventListener("onEmbeddedMessagingWindowClosed",()=>{
         console.log("Chat closed");
-        botGreetingSeen = false; // Reset for next session
+        botGreetingSeen = false; 
         showHome();
     });
 
@@ -129,36 +129,34 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
         showHome();
     });
 
-    // 🟢 REFINED TRIGGER: Listen for the entry and verify it's a message
+    // 🟢 UPDATED TRIGGER: Listen for BOTH message entries and participant changes
     window.addEventListener("onEmbeddedMessagingConversationEntry", (event) => {
         const entry = event.detail?.conversationEntry;
+        if (!entry) return;
+
+        console.log("📩 Entry Detected:", entry.entryType);
+
+        // Logic A: It's a message from someone other than the user
+        const isBotMessage = entry.entryType === "Message" && entry.sender?.role !== "EndUser";
         
-        // Log all entries for debugging
-        console.log("📩 Entry Type:", entry?.entryType, "| Sender:", entry?.sender?.role);
+        // Logic B: It's the bot joining (which we see in your screenshots)
+        const isBotJoined = entry.entryType === "ParticipantChanged";
 
-        // Check if this is a Message from the Agent/Bot
-        if (entry?.entryType === "Message" && entry?.sender?.role === "EndUser") {
-            // If the user manually typed something, we stop our pending message
-            pendingMessage = null; 
-        }
+        if ((isBotMessage || isBotJoined) && !botGreetingSeen && pendingMessage) {
+            console.log("🚀 Condition Met (" + entry.entryType + "). Sending in 800ms...");
+            
+            // Lock this immediately so we don't send twice
+            botGreetingSeen = true;
 
-        if (entry?.entryType === "Message" && entry?.sender?.role !== "EndUser") {
-            if (!botGreetingSeen && pendingMessage) {
-                console.log("🚀 Bot greeting detected. Sending stored message:", pendingMessage);
-                
-                // Small delay ensures the UI is ready to receive the message
-                setTimeout(() => {
+            // Small delay to let the Salesforce UI settle
+            setTimeout(() => {
+                if (pendingMessage) {
+                    console.log("📡 Executing sendTextMessage:", pendingMessage);
                     embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
                     pendingMessage = null;
-                    botGreetingSeen = true;
-                }, 500);
-            }
+                }
+            }, 800);
         }
-    });
-
-    // Detailed Debugger for Participant changes
-    window.addEventListener("onEmbeddedMessagingConversationParticipantChanged", (event) => {
-        console.log("🧩 Participant Changed:", event.detail);
     });
 });
 
@@ -166,7 +164,7 @@ function launchChat(message){
     if(message){
         console.log("🟦 Customer action stored:", message);
         pendingMessage = message; 
-        botGreetingSeen = false; // Ensure we look for the greeting again
+        botGreetingSeen = false; 
     }
     embeddedservice_bootstrap.utilAPI.launchChat();
 }
