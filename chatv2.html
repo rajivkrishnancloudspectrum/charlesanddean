@@ -129,7 +129,7 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
         showHome();
     });
 
-    // ===== YOUR EXISTING PARTICIPANT DEBUGGER (unchanged) =====
+    // EXISTING PARTICIPANT DEBUGGER
     window.addEventListener(
       "onEmbeddedMessagingConversationParticipantChanged",
       (event) => {
@@ -158,7 +158,7 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
         });
     });
 
-    // ===== ADDITION: TRUE HUMAN DETECTION =====
+    // ADDITION: TRUE HUMAN DETECTION (FIXED)
     window.addEventListener(
       "onEmbeddedMessagingMessageReceived",
       (event) => {
@@ -177,6 +177,7 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
             pendingMessage = null;
             firstHumanMessageHandled = true;
         }
+      }  // ✅ missing brace fixed here
     );
 
     [
