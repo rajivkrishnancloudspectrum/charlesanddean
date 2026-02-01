@@ -21,77 +21,44 @@
             text-align:center;
         }
 
-        .title{
-            font-size:34px;
-            font-weight:600;
-            color:#0d1b2a;
-            margin-bottom:10px;
-        }
-
-        .subtitle{
-            color:#6b7280;
-            margin-bottom:30px;
-            font-size:16px;
-        }
+        .title{ font-size:34px; font-weight:600; color:#0d1b2a; margin-bottom:10px; }
+        .subtitle{ color:#6b7280; margin-bottom:30px; font-size:16px; }
 
         .input-wrapper{
-            display:flex;
-            background:white;
-            border-radius:14px;
+            display:flex; background:white; border-radius:14px;
             box-shadow:0 10px 25px rgba(0,0,0,0.1);
-            padding:8px;
-            align-items:center;
+            padding:8px; align-items:center;
         }
 
         .chat-input{
-            flex:1;
-            border:none;
-            outline:none;
-            font-size:16px;
-            padding:14px;
-            border-radius:12px;
+            flex:1; border:none; outline:none;
+            font-size:16px; padding:14px; border-radius:12px;
         }
 
         .send-btn{
-            background:#0d1b2a;
-            color:white;
-            border:none;
-            padding:12px 20px;
-            border-radius:10px;
-            cursor:pointer;
-            font-weight:600;
+            background:#0d1b2a; color:white; border:none;
+            padding:12px 20px; border-radius:10px;
+            cursor:pointer; font-weight:600;
         }
 
         .quick-options{
-            margin-top:28px;
-            display:flex;
-            flex-wrap:wrap;
-            gap:12px;
-            justify-content:center;
+            margin-top:28px; display:flex; flex-wrap:wrap;
+            gap:12px; justify-content:center;
         }
 
         .quick-btn{
-            padding:10px 16px;
-            border-radius:22px;
-            border:1px solid #d1d5db;
-            background:white;
-            cursor:pointer;
-            transition:0.2s;
+            padding:10px 16px; border-radius:22px;
+            border:1px solid #d1d5db; background:white;
+            cursor:pointer; transition:0.2s;
         }
 
         .quick-btn:hover{
-            background:#0d1b2a;
-            color:white;
-            border-color:#0d1b2a;
+            background:#0d1b2a; color:white; border-color:#0d1b2a;
         }
 
-        /* Fullscreen Salesforce Messaging */
         .embeddedMessagingFrame{
             position:fixed !important;
-            top:0 !important;
-            left:0 !important;
-            right:0 !important;
-            bottom:0 !important;
+            inset:0 !important;
             width:100vw !important;
             height:100vh !important;
             z-index:999999 !important;
@@ -111,8 +78,7 @@
     <div class="subtitle">Ask anything about vehicle finance, eligibility or applications</div>
 
     <div class="input-wrapper">
-        <input type="text" id="chatInput" class="chat-input"
-               placeholder="Ask about vehicle finance..." />
+        <input type="text" id="chatInput" class="chat-input" placeholder="Ask about vehicle finance..." />
         <button id="sendBtn" class="send-btn">Send</button>
     </div>
 
@@ -129,6 +95,9 @@
 </div>
 
 <script>
+function hideHome(){ document.getElementById('chat-container').style.display='none'; }
+function showHome(){ document.getElementById('chat-container').style.display='block'; }
+
 function makeMessagingFullScreen(){
     const interval=setInterval(()=>{
         const frame=document.querySelector('.embeddedMessagingFrame');
@@ -140,34 +109,12 @@ function makeMessagingFullScreen(){
     },200);
 }
 
-function showHome(){
-    document.getElementById('chat-container').style.display='block';
-}
-
-function hideHome(){
-    document.getElementById('chat-container').style.display='none';
-}
+/* ================= INIT ================= */
 
 function initEmbeddedMessaging(){
     try{
         embeddedservice_bootstrap.settings.language='en_US';
         embeddedservice_bootstrap.settings.hideChatButtonOnLoad=true;
-
-        // Chat opened
-        window.addEventListener("onEmbeddedMessagingConversationOpened",()=>{
-            hideHome();
-            makeMessagingFullScreen();
-        });
-
-        // Chat closed
-        window.addEventListener("onEmbeddedMessagingWindowClosed",()=>{
-            showHome();
-        });
-
-        // Chat minimized  ✅ FIX
-        window.addEventListener("onEmbeddedMessagingWindowMinimized",()=>{
-            showHome();
-        });
 
         embeddedservice_bootstrap.init(
             '00DTA00000B1e6j',
@@ -175,29 +122,82 @@ function initEmbeddedMessaging(){
             'https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563',
             { scrt2URL:'https://charlesdean--partialcop.sandbox.my.salesforce-scrt.com' }
         );
+
     }catch(err){
         console.error(err);
     }
 }
 
+/* ================= READY EVENT (CRITICAL) ================= */
+
+window.addEventListener("onEmbeddedMessagingReady", () => {
+    console.log("✅ Embedded Messaging Ready");
+
+    // Attach lifecycle events ONLY after ready
+    window.addEventListener("onEmbeddedMessagingConversationOpened",()=>{
+        console.log("Chat opened");
+        hideHome();
+        makeMessagingFullScreen();
+    });
+
+    window.addEventListener("onEmbeddedMessagingWindowClosed",()=>{
+        console.log("Chat closed");
+        showHome();
+    });
+
+    window.addEventListener("onEmbeddedMessagingWindowMinimized",()=>{
+        console.log("Chat minimized");
+        showHome();
+    });
+
+    // 🔥 Participant change debugger (AGENT JOIN DETECTION)
+    window.addEventListener(
+        "onEmbeddedMessagingConversationParticipantChanged",
+        (event) => {
+            console.group("🧩 Participant Changed Event");
+            console.log("Raw event:", event);
+            console.log("event.detail:", event.detail);
+            console.log("JSON:", JSON.stringify(event.detail, null, 2));
+            console.groupEnd();
+
+            const entries = event.detail?.entries || [];
+            entries.forEach(entry => {
+                if(entry.participant?.role === "Agent" && entry.operation === "add"){
+                    console.log("✅ LIVE AGENT JOINED:", entry.displayName);
+                }
+            });
+        }
+    );
+
+    // Optional: log all major events
+    [
+        "onEmbeddedMessagingMessageSent",
+        "onEmbeddedMessagingMessageReceived"
+    ].forEach(evt=>{
+        window.addEventListener(evt, e=>{
+            console.log(`📡 ${evt}`, e.detail);
+        });
+    });
+});
+
+/* ================= CHAT LAUNCH ================= */
+
 function launchChat(message){
     embeddedservice_bootstrap.utilAPI.launchChat()
         .then(()=>{
-            if(message){ sendMessageToChat(message); }
+            if(message){
+                setTimeout(()=>{
+                    embeddedservice_bootstrap.utilAPI.sendTextMessage(message);
+                },1500);
+            }
         });
 }
 
-function sendMessageToChat(message){
-    setTimeout(()=>{
-        embeddedservice_bootstrap.utilAPI.sendTextMessage(message);
-    },2000);
-}
+/* ================= BUTTON WIRING ================= */
 
 document.addEventListener('DOMContentLoaded',()=>{
     const sendBtn=document.getElementById('sendBtn');
     const chatInput=document.getElementById('chatInput');
-    const orderButton=document.getElementById('orderButton');
-    const caseButton=document.getElementById('caseButton');
 
     sendBtn.addEventListener('click',()=>{
         const msg=chatInput.value.trim();
@@ -211,13 +211,8 @@ document.addEventListener('DOMContentLoaded',()=>{
         if(e.key==="Enter") sendBtn.click();
     });
 
-    orderButton.addEventListener('click',()=>{
-        launchChat(orderButton.textContent.trim());
-    });
-
-    caseButton.addEventListener('click',()=>{
-        launchChat(caseButton.textContent.trim());
-    });
+    orderButton.addEventListener('click',()=>launchChat(orderButton.textContent.trim()));
+    caseButton.addEventListener('click',()=>launchChat(caseButton.textContent.trim()));
 });
 </script>
 
