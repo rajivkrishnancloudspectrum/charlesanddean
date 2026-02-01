@@ -79,6 +79,7 @@
 <script>
 let pendingMessage = null;
 let firstAgentMessageHandled = false;
+let botGreetingSeen = false; // FIX #1: Added botGreetingSeen variable
 
 function hideHome(){ document.getElementById('chat-container').style.display='none'; }
 function showHome(){ document.getElementById('chat-container').style.display='block'; }
@@ -129,11 +130,10 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
         showHome();
     });
 
-    // EXISTING PARTICIPANT DEBUGGER (unchanged)
+    // EXISTING PARTICIPANT DEBUGGER
     window.addEventListener(
       "onEmbeddedMessagingConversationParticipantChanged",
       (event) => {
-
         console.group("🧩 Participant Changed Event (RAW)");
         console.log("event.detail:", event.detail);
         console.groupEnd();
@@ -142,13 +142,11 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
         if (!rawPayload) return;
 
         const parsed = JSON.parse(rawPayload);
-
         console.group("✅ Parsed Participant Payload");
         console.log(parsed);
         console.groupEnd();
 
         const entries = parsed.entries || [];
-
         entries.forEach(entry => {
             console.log(
                 "ROLE:", entry.participant?.role,
@@ -158,26 +156,37 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
         });
     });
 
-    // 🔥 CORRECT TRIGGER — first bot/agent message
+    // FIX #2: TRUE TRIGGER — fires when bot greeting is visible in UI
+    window.addEventListener(
+      "onEmbeddedMessagingConversationEntry",
+      (event) => {
+        const entry = event.detail?.conversationEntry;
+        if(!entry || entry.entryType !== "Message") return;
+
+        console.log("🟧 Entry detected in transcript:", entry);
+
+        // We check if it's the first message from the agent/bot to send our pending text
+        if(!botGreetingSeen){
+            botGreetingSeen = true;
+
+            if(pendingMessage){
+                console.log("🟥 Sending stored message after entry detected:", pendingMessage);
+                embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
+                pendingMessage = null;
+            }
+        }
+    });
+
+    // Existing Received listener kept for logging consistency
     window.addEventListener(
       "onEmbeddedMessagingMessageReceived",
       (event) => {
-
         if(firstAgentMessageHandled) return;
-
         const sender = event.detail?.conversationEntry?.sender;
-
-        console.group("🤖 First Agent/Bot Message Detected");
+        console.group("🤖 Message Received Event");
         console.log("Sender:", sender);
         console.groupEnd();
-
         firstAgentMessageHandled = true;
-
-        if(pendingMessage){
-            console.log("🚀 Sending stored customer message after bot greeting");
-            embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
-            pendingMessage = null;
-        }
     });
 
     window.addEventListener("onEmbeddedMessagingMessageSent", e=>{
@@ -185,14 +194,13 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
     });
 });
 
+// FIX #3: Modified launchChat to store message BEFORE launching to avoid race conditions
 function launchChat(message){
-    embeddedservice_bootstrap.utilAPI.launchChat()
-        .then(()=>{
-            if(message){
-                console.log("🕒 Storing message until bot greeting");
-                pendingMessage = message;
-            }
-        });
+    if(message){
+        console.log("🟦 Customer action stored:", message);
+        pendingMessage = message; 
+    }
+    embeddedservice_bootstrap.utilAPI.launchChat();
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
