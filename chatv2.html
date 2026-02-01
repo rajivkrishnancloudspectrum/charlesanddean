@@ -43,16 +43,25 @@
         .quick-btn:hover{
             background:#0d1b2a; color:white; border-color:#0d1b2a;
         }
-        .embeddedMessagingFrame{
-            position:fixed !important;
-            inset:0 !important;
-            width:100vw !important;
-            height:100vh !important;
-            z-index:999999 !important;
+        
+        /* UPDATED CSS TO REMOVE GAPS */
+        .embeddedMessagingFrame {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            z-index: 999999 !important;
+            max-height: 100vh !important;
+            max-width: 100vw !important;
+            border: none !important;
         }
-        .embeddedMessagingFrame iframe{
-            width:100% !important;
-            height:100% !important;
+        .embeddedMessagingFrame iframe {
+            width: 100% !important;
+            height: 100% !important;
+            border: none !important;
         }
     </style>
 </head>
@@ -83,22 +92,24 @@ let botGreetingSeen = false;
 function hideHome(){ document.getElementById('chat-container').style.display='none'; }
 function showHome(){ document.getElementById('chat-container').style.display='block'; }
 
+// REFINED JS OVERRIDE
 function makeMessagingFullScreen(){
     const interval=setInterval(()=>{
         const frame=document.querySelector('.embeddedMessagingFrame');
         if(frame){
-            frame.style.width="100vw";
-            frame.style.height="100vh";
+            frame.style.setProperty('width', '100vw', 'important');
+            frame.style.setProperty('height', '100vh', 'important');
+            frame.style.setProperty('top', '0', 'important');
+            frame.style.setProperty('left', '0', 'important');
             clearInterval(interval);
         }
-    },200);
+    },100);
 }
 
 function initEmbeddedMessaging(){
     try{
         embeddedservice_bootstrap.settings.language='en_US';
         embeddedservice_bootstrap.settings.hideChatButtonOnLoad=true;
-        // Initialize the messaging bootstrap
         embeddedservice_bootstrap.init(
             '00DTA00000B1e6j',
             'Web_AI_Agent',
@@ -117,7 +128,6 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
         console.log("Chat opened - Initializing handshake phase...");
         hideHome();
         makeMessagingFullScreen();
-        // Trigger sequence on window open event
         startSendSequence("ConversationOpened");
     });
 
@@ -142,7 +152,6 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
             });
         }
         console.groupEnd();
-        // Trigger sequence once the bot joins the session
         startSendSequence("ParticipantChanged");
     });
 
@@ -150,31 +159,23 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
         const entry = event.detail?.conversationEntry;
         if (!entry) return;
         console.log("📩 Debug Entry Type:", entry.entryType);
-        // Backup: Trigger if a bot message is detected
         if (entry.entryType === "Message" && entry.sender?.role !== "EndUser") {
             startSendSequence("BotMessageReceived");
         }
     });
 });
 
-/**
- * Initiates the sending process with a 12-second delay for stability
- */
 function startSendSequence(triggerSource) {
     if (!pendingMessage || botGreetingSeen) return;
-
     console.log(`🚀 Triggered via ${triggerSource}.`);
-    console.log("🕒 Waiting 12 seconds to bypass sandbox load issues...");
-    
     botGreetingSeen = true;
-
     setTimeout(() => {
         if (pendingMessage) {
             console.log("📡 Timer expired. Sending message:", pendingMessage);
             embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
-            pendingMessage = null; // Reset message after sending
+            pendingMessage = null;
         }
-    }, 7000); // 12 Seconds Gap
+    }, 7000); 
 }
 
 function launchChat(message){
@@ -189,7 +190,6 @@ function launchChat(message){
 document.addEventListener('DOMContentLoaded',()=>{
     const sendBtn = document.getElementById('sendBtn');
     const chatInput = document.getElementById('chatInput');
-
     sendBtn.addEventListener('click',()=>{
         const msg = chatInput.value.trim();
         if(msg){
@@ -197,12 +197,9 @@ document.addEventListener('DOMContentLoaded',()=>{
             launchChat(msg);
         }
     });
-
     chatInput.addEventListener("keypress",(e)=>{
         if(e.key === "Enter") sendBtn.click();
     });
-
-    // Quick Button Action Listeners
     document.getElementById('orderButton').addEventListener('click', function() { launchChat(this.textContent.trim()); });
     document.getElementById('caseButton').addEventListener('click', function() { launchChat(this.textContent.trim()); });
 });
