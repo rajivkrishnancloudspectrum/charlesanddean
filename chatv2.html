@@ -129,33 +129,30 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
         showHome();
     });
 
-    // 🟢 UPDATED TRIGGER: Listen for BOTH message entries and participant changes
+    // Combined Trigger Logic
     window.addEventListener("onEmbeddedMessagingConversationEntry", (event) => {
         const entry = event.detail?.conversationEntry;
         if (!entry) return;
 
         console.log("📩 Entry Detected:", entry.entryType);
 
-        // Logic A: It's a message from someone other than the user
-        const isBotMessage = entry.entryType === "Message" && entry.sender?.role !== "EndUser";
-        
-        // Logic B: It's the bot joining (which we see in your screenshots)
-        const isBotJoined = entry.entryType === "ParticipantChanged";
+        // Check if bot joined or sent a message
+        const botPresent = (entry.entryType === "Message" && entry.sender?.role !== "EndUser") || 
+                           (entry.entryType === "ParticipantChanged");
 
-        if ((isBotMessage || isBotJoined) && !botGreetingSeen && pendingMessage) {
-            console.log("🚀 Condition Met (" + entry.entryType + "). Sending in 800ms...");
+        if (botPresent && !botGreetingSeen && pendingMessage) {
+            console.log("🚀 Bot detected via " + entry.entryType + ". Preparing to send...");
             
-            // Lock this immediately so we don't send twice
             botGreetingSeen = true;
 
-            // Small delay to let the Salesforce UI settle
+            // Increased delay to 1 second to ensure Salesforce is ready for input
             setTimeout(() => {
                 if (pendingMessage) {
-                    console.log("📡 Executing sendTextMessage:", pendingMessage);
+                    console.log("📡 Sending message:", pendingMessage);
                     embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
                     pendingMessage = null;
                 }
-            }, 800);
+            }, 1000);
         }
     });
 });
