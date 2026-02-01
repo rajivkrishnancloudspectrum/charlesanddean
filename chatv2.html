@@ -78,7 +78,7 @@
 
 <script>
 let pendingMessage = null;
-let firstHumanMessageHandled = false;
+let firstAgentMessageHandled = false;
 
 function hideHome(){ document.getElementById('chat-container').style.display='none'; }
 function showHome(){ document.getElementById('chat-container').style.display='block'; }
@@ -129,7 +129,7 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
         showHome();
     });
 
-    // EXISTING PARTICIPANT DEBUGGER
+    // EXISTING PARTICIPANT DEBUGGER (unchanged)
     window.addEventListener(
       "onEmbeddedMessagingConversationParticipantChanged",
       (event) => {
@@ -158,34 +158,30 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
         });
     });
 
-    // ADDITION: TRUE HUMAN DETECTION (FIXED)
+    // 🔥 CORRECT TRIGGER — first bot/agent message
     window.addEventListener(
       "onEmbeddedMessagingMessageReceived",
       (event) => {
 
-        if(firstHumanMessageHandled) return;
+        if(firstAgentMessageHandled) return;
 
         const sender = event.detail?.conversationEntry?.sender;
 
-        console.group("🧠 Human Detection Check");
+        console.group("🤖 First Agent/Bot Message Detected");
         console.log("Sender:", sender);
         console.groupEnd();
 
-        if(sender?.appType === "agent" && pendingMessage){
-            console.log("✅ Human agent replied — sending stored message now");
+        firstAgentMessageHandled = true;
+
+        if(pendingMessage){
+            console.log("🚀 Sending stored customer message after bot greeting");
             embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
             pendingMessage = null;
-            firstHumanMessageHandled = true;
         }
-      }  // ✅ missing brace fixed here
-    );
+    });
 
-    [
-        "onEmbeddedMessagingMessageSent"
-    ].forEach(evt=>{
-        window.addEventListener(evt, e=>{
-            console.log(`📡 ${evt}`, e.detail);
-        });
+    window.addEventListener("onEmbeddedMessagingMessageSent", e=>{
+        console.log("📡 Message Sent Event:", e.detail);
     });
 });
 
@@ -193,7 +189,7 @@ function launchChat(message){
     embeddedservice_bootstrap.utilAPI.launchChat()
         .then(()=>{
             if(message){
-                console.log("🕒 Storing message until human responds");
+                console.log("🕒 Storing message until bot greeting");
                 pendingMessage = message;
             }
         });
