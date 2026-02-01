@@ -78,8 +78,7 @@
 
 <script>
 let pendingMessage = null;
-let firstAgentMessageHandled = false;
-let botGreetingSeen = false; // FIX #1: Added botGreetingSeen variable
+let botGreetingSeen = false;
 
 function hideHome(){ document.getElementById('chat-container').style.display='none'; }
 function showHome(){ document.getElementById('chat-container').style.display='block'; }
@@ -122,103 +121,72 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
 
     window.addEventListener("onEmbeddedMessagingWindowClosed",()=>{
         console.log("Chat closed");
+        botGreetingSeen = false; // Reset for next session
         showHome();
     });
 
     window.addEventListener("onEmbeddedMessagingWindowMinimized",()=>{
-        console.log("Chat minimized");
         showHome();
     });
 
-    // EXISTING PARTICIPANT DEBUGGER
-    window.addEventListener(
-      "onEmbeddedMessagingConversationParticipantChanged",
-      (event) => {
-        console.group("🧩 Participant Changed Event (RAW)");
-        console.log("event.detail:", event.detail);
-        console.groupEnd();
-
-        const rawPayload = event.detail?.conversationEntry?.entryPayload;
-        if (!rawPayload) return;
-
-        const parsed = JSON.parse(rawPayload);
-        console.group("✅ Parsed Participant Payload");
-        console.log(parsed);
-        console.groupEnd();
-
-        const entries = parsed.entries || [];
-        entries.forEach(entry => {
-            console.log(
-                "ROLE:", entry.participant?.role,
-                "| OP:", entry.operation,
-                "| NAME:", entry.displayName
-            );
-        });
-    });
-
-    // FIX #2: TRUE TRIGGER — fires when bot greeting is visible in UI
-    window.addEventListener(
-      "onEmbeddedMessagingConversationEntry",
-      (event) => {
+    // 🟢 REFINED TRIGGER: Listen for the entry and verify it's a message
+    window.addEventListener("onEmbeddedMessagingConversationEntry", (event) => {
         const entry = event.detail?.conversationEntry;
-        if(!entry || entry.entryType !== "Message") return;
+        
+        // Log all entries for debugging
+        console.log("📩 Entry Type:", entry?.entryType, "| Sender:", entry?.sender?.role);
 
-        console.log("🟧 Entry detected in transcript:", entry);
+        // Check if this is a Message from the Agent/Bot
+        if (entry?.entryType === "Message" && entry?.sender?.role === "EndUser") {
+            // If the user manually typed something, we stop our pending message
+            pendingMessage = null; 
+        }
 
-        // We check if it's the first message from the agent/bot to send our pending text
-        if(!botGreetingSeen){
-            botGreetingSeen = true;
-
-            if(pendingMessage){
-                console.log("🟥 Sending stored message after entry detected:", pendingMessage);
-                embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
-                pendingMessage = null;
+        if (entry?.entryType === "Message" && entry?.sender?.role !== "EndUser") {
+            if (!botGreetingSeen && pendingMessage) {
+                console.log("🚀 Bot greeting detected. Sending stored message:", pendingMessage);
+                
+                // Small delay ensures the UI is ready to receive the message
+                setTimeout(() => {
+                    embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
+                    pendingMessage = null;
+                    botGreetingSeen = true;
+                }, 500);
             }
         }
     });
 
-    // Existing Received listener kept for logging consistency
-    window.addEventListener(
-      "onEmbeddedMessagingMessageReceived",
-      (event) => {
-        if(firstAgentMessageHandled) return;
-        const sender = event.detail?.conversationEntry?.sender;
-        console.group("🤖 Message Received Event");
-        console.log("Sender:", sender);
-        console.groupEnd();
-        firstAgentMessageHandled = true;
-    });
-
-    window.addEventListener("onEmbeddedMessagingMessageSent", e=>{
-        console.log("📡 Message Sent Event:", e.detail);
+    // Detailed Debugger for Participant changes
+    window.addEventListener("onEmbeddedMessagingConversationParticipantChanged", (event) => {
+        console.log("🧩 Participant Changed:", event.detail);
     });
 });
 
-// FIX #3: Modified launchChat to store message BEFORE launching to avoid race conditions
 function launchChat(message){
     if(message){
         console.log("🟦 Customer action stored:", message);
         pendingMessage = message; 
+        botGreetingSeen = false; // Ensure we look for the greeting again
     }
     embeddedservice_bootstrap.utilAPI.launchChat();
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
-    const sendBtn=document.getElementById('sendBtn');
-    const chatInput=document.getElementById('chatInput');
-    const orderButton=document.getElementById('orderButton');
-    const caseButton=document.getElementById('caseButton');
+    const sendBtn = document.getElementById('sendBtn');
+    const chatInput = document.getElementById('chatInput');
+    const orderButton = document.getElementById('orderButton');
+    const caseButton = document.getElementById('caseButton');
 
     sendBtn.addEventListener('click',()=>{
-        const msg=chatInput.value.trim();
+        const msg = chatInput.value.trim();
         if(msg){
-            chatInput.value="";
+            chatInput.value = "";
             launchChat(msg);
         }
     });
 
     chatInput.addEventListener("keypress",(e)=>{
-        if(e.key==="Enter") sendBtn.click();
+        if(e.key === "Enter") sendBtn.click();
     });
 
     orderButton.addEventListener('click',()=>launchChat(orderButton.textContent.trim()));
