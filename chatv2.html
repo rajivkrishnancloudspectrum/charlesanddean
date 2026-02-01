@@ -1,83 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Charles & Dean Finance Assistant</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body{
-            margin:0;
-            height:100vh;
-            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-            background:#f3f4f6;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-        }
-        #chat-container{
-            width:720px;
-            max-width:90%;
-            text-align:center;
-        }
-        .title{ font-size:34px; font-weight:600; color:#0d1b2a; margin-bottom:10px; }
-        .subtitle{ color:#6b7280; margin-bottom:30px; font-size:16px; }
-        .input-wrapper{
-            display:flex; background:white; border-radius:14px;
-            box-shadow:0 10px 25px rgba(0,0,0,0.1);
-            padding:8px; align-items:center;
-        }
-        .chat-input{ flex:1; border:none; outline:none; font-size:16px; padding:14px; border-radius:12px; }
-        .send-btn{
-            background:#0d1b2a; color:white; border:none;
-            padding:12px 20px; border-radius:10px;
-            cursor:pointer; font-weight:600;
-        }
-        .quick-options{
-            margin-top:28px; display:flex; flex-wrap:wrap;
-            gap:12px; justify-content:center;
-        }
-        .quick-btn{
-            padding:10px 16px; border-radius:22px;
-            border:1px solid #d1d5db; background:white;
-            cursor:pointer; transition:0.2s;
-        }
-        .quick-btn:hover{
-            background:#0d1b2a; color:white; border-color:#0d1b2a;
-        }
-        .embeddedMessagingFrame{
-            position:fixed !important;
-            inset:0 !important;
-            width:100vw !important;
-            height:100vh !important;
-            z-index:999999 !important;
-        }
-        .embeddedMessagingFrame iframe{
-            width:100% !important;
-            height:100% !important;
-        }
-    </style>
-</head>
-
-<body>
-
-<div id="chat-container">
-    <div class="title">Charles & Dean Finance Assistant</div>
-    <div class="subtitle">Ask anything about vehicle finance, eligibility or applications</div>
-
-    <div class="input-wrapper">
-        <input type="text" id="chatInput" class="chat-input" placeholder="Ask about vehicle finance..." />
-        <button id="sendBtn" class="send-btn">Send</button>
-    </div>
-
-    <div class="quick-options">
-        <button id="orderButton" class="quick-btn">Need vehicle finance help</button>
-        <button id="caseButton" class="quick-btn">Check my eligibility</button>
-        <button class="quick-btn" onclick="launchChat('Help me choose the right vehicle finance option')">Help me choose a plan</button>
-        <button class="quick-btn" onclick="launchChat('I want to apply for vehicle finance')">Start application</button>
-    </div>
-</div>
-
 <script>
 let pendingMessage = null;
+let firstMessageHandled = false;
 
 function hideHome(){ document.getElementById('chat-container').style.display='none'; }
 function showHome(){ document.getElementById('chat-container').style.display='block'; }
@@ -121,6 +44,8 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
     window.addEventListener("onEmbeddedMessagingWindowClosed",()=>{
         console.log("Chat closed");
         showHome();
+        firstMessageHandled = false;
+        pendingMessage = null;
     });
 
     window.addEventListener("onEmbeddedMessagingWindowMinimized",()=>{
@@ -128,48 +53,33 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
         showHome();
     });
 
-    // ✅ Correct participant parsing with logs
+    // 🔥 CORRECT DETECTION — first real response
     window.addEventListener(
-      "onEmbeddedMessagingConversationParticipantChanged",
+      "onEmbeddedMessagingMessageReceived",
       (event) => {
 
-        console.group("🧩 Participant Changed Event (RAW)");
+        console.group("📩 Message Received");
         console.log("event.detail:", event.detail);
         console.groupEnd();
 
-        const rawPayload = event.detail?.conversationEntry?.entryPayload;
-        if (!rawPayload) return;
+        if(firstMessageHandled) return;
 
-        const parsed = JSON.parse(rawPayload);
+        const sender = event.detail?.conversationEntry?.sender;
+        console.log("First message sender:", sender);
 
-        console.group("✅ Parsed Participant Payload");
-        console.log(parsed);
-        console.groupEnd();
+        firstMessageHandled = true;
 
-        const entries = parsed.entries || [];
-
-        entries.forEach(entry => {
-            console.log(
-                "ROLE:", entry.participant?.role,
-                "| OP:", entry.operation,
-                "| NAME:", entry.displayName
-            );
-
-            if (entry.operation === "add") {
-                console.log("✅ Participant Active:", entry.displayName);
-
-                if (pendingMessage) {
-                    console.log("🚀 Sending stored message now");
-                    embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
-                    pendingMessage = null;
-                }
-            }
-        });
+        if(sender?.appType === "agent" && pendingMessage){
+            console.log("✅ Human replied first — sending stored message");
+            embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
+            pendingMessage = null;
+        } else {
+            console.log("ℹ️ First reply was from bot. Waiting for human...");
+        }
     });
 
     [
-        "onEmbeddedMessagingMessageSent",
-        "onEmbeddedMessagingMessageReceived"
+        "onEmbeddedMessagingMessageSent"
     ].forEach(evt=>{
         window.addEventListener(evt, e=>{
             console.log(`📡 ${evt}`, e.detail);
@@ -181,7 +91,7 @@ function launchChat(message){
     embeddedservice_bootstrap.utilAPI.launchChat()
         .then(()=>{
             if(message){
-                console.log("🕒 Storing message until participant active");
+                console.log("🕒 Storing message until first human response");
                 pendingMessage = message;
             }
         });
@@ -209,9 +119,3 @@ document.addEventListener('DOMContentLoaded',()=>{
     caseButton.addEventListener('click',()=>launchChat(caseButton.textContent.trim()));
 });
 </script>
-
-<script src='https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563/assets/js/bootstrap.min.js'
-        onload='initEmbeddedMessaging()'></script>
-
-</body>
-</html>
