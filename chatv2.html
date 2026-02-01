@@ -78,7 +78,6 @@
 
 <script>
 let pendingMessage = null;
-let firstAgentMessageHandled = false;
 let botGreetingSeen = false;
 
 function hideHome(){ document.getElementById('chat-container').style.display='none'; }
@@ -99,7 +98,7 @@ function initEmbeddedMessaging(){
     try{
         embeddedservice_bootstrap.settings.language='en_US';
         embeddedservice_bootstrap.settings.hideChatButtonOnLoad=true;
-
+        // Initialize the messaging bootstrap
         embeddedservice_bootstrap.init(
             '00DTA00000B1e6j',
             'Web_AI_Agent',
@@ -115,32 +114,26 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
     console.log("✅ Embedded Messaging Ready");
 
     window.addEventListener("onEmbeddedMessagingConversationOpened",()=>{
-        console.log("Chat opened - Handshaking phase...");
+        console.log("Chat opened - Initializing handshake phase...");
         hideHome();
         makeMessagingFullScreen();
-        
-        // BACKUP TRIGGER: If the message events fail, this sends it after the window is solid
-        setTimeout(() => {
-            if(pendingMessage && !botGreetingSeen) {
-                console.log("🚀 Backup trigger: Sending after window open timeout");
-                executeSend();
-            }
-        }, 2500);
+        // Trigger sequence on window open event
+        startSendSequence("ConversationOpened");
     });
 
     window.addEventListener("onEmbeddedMessagingWindowClosed",()=>{
-        console.log("Chat closed");
+        console.log("Chat closed - Resetting state...");
         botGreetingSeen = false;
         showHome();
     });
 
     window.addEventListener("onEmbeddedMessagingWindowMinimized",()=>{
+        console.log("Chat minimized");
         showHome();
     });
 
-    // PARTICIPANT DEBUGGER (Kept for your monitoring)
     window.addEventListener("onEmbeddedMessagingConversationParticipantChanged", (event) => {
-        console.group("🧩 Participant Changed Event");
+        console.group("🧩 Participant Changed Event Details");
         const rawPayload = event.detail?.conversationEntry?.entryPayload;
         if (rawPayload) {
             const parsed = JSON.parse(rawPayload);
@@ -149,47 +142,46 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
             });
         }
         console.groupEnd();
-        
-        // Use participant change as a trigger if it's the bot
-        if(pendingMessage && !botGreetingSeen) {
-            console.log("🚀 Participant trigger: Bot joined, preparing send...");
-            executeSend();
-        }
+        // Trigger sequence once the bot joins the session
+        startSendSequence("ParticipantChanged");
     });
 
-    // MESSAGE ENTRY LISTENER
     window.addEventListener("onEmbeddedMessagingConversationEntry", (event) => {
         const entry = event.detail?.conversationEntry;
-        if(!entry) return;
-
-        console.log("📩 Entry Type:", entry.entryType);
-
+        if (!entry) return;
+        console.log("📩 Debug Entry Type:", entry.entryType);
+        // Backup: Trigger if a bot message is detected
         if (entry.entryType === "Message" && entry.sender?.role !== "EndUser") {
-            if(pendingMessage && !botGreetingSeen) {
-                console.log("🚀 Message trigger: Bot greeting detected");
-                executeSend();
-            }
+            startSendSequence("BotMessageReceived");
         }
     });
 });
 
-function executeSend() {
-    if(!pendingMessage || botGreetingSeen) return;
-    botGreetingSeen = true;
+/**
+ * Initiates the sending process with a 12-second delay for stability
+ */
+function startSendSequence(triggerSource) {
+    if (!pendingMessage || botGreetingSeen) return;
+
+    console.log(`🚀 Triggered via ${triggerSource}.`);
+    console.log("🕒 Waiting 12 seconds to bypass sandbox load issues...");
     
-    // Tiny delay to ensure the Salesforce input box is active
+    botGreetingSeen = true;
+
     setTimeout(() => {
-        console.log("📡 Sending message to Salesforce:", pendingMessage);
-        embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
-        pendingMessage = null;
-    }, 500);
+        if (pendingMessage) {
+            console.log("📡 Timer expired. Sending message:", pendingMessage);
+            embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
+            pendingMessage = null; // Reset message after sending
+        }
+    }, 12000); // 12 Seconds Gap
 }
 
 function launchChat(message){
     if(message){
         console.log("🟦 Customer action stored:", message);
-        pendingMessage = message;
-        botGreetingSeen = false;
+        pendingMessage = message; 
+        botGreetingSeen = false; 
     }
     embeddedservice_bootstrap.utilAPI.launchChat();
 }
@@ -210,6 +202,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         if(e.key === "Enter") sendBtn.click();
     });
 
+    // Quick Button Action Listeners
     document.getElementById('orderButton').addEventListener('click', function() { launchChat(this.textContent.trim()); });
     document.getElementById('caseButton').addEventListener('click', function() { launchChat(this.textContent.trim()); });
 });
