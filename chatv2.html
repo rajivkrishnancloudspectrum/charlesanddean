@@ -78,6 +78,7 @@
 
 <script>
 let pendingMessage = null;
+let firstAgentMessageHandled = false;
 let botGreetingSeen = false;
 
 function hideHome(){ document.getElementById('chat-container').style.display='none'; }
@@ -114,14 +115,22 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
     console.log("✅ Embedded Messaging Ready");
 
     window.addEventListener("onEmbeddedMessagingConversationOpened",()=>{
-        console.log("Chat opened");
+        console.log("Chat opened - Handshaking phase...");
         hideHome();
         makeMessagingFullScreen();
+        
+        // BACKUP TRIGGER: If the message events fail, this sends it after the window is solid
+        setTimeout(() => {
+            if(pendingMessage && !botGreetingSeen) {
+                console.log("🚀 Backup trigger: Sending after window open timeout");
+                executeSend();
+            }
+        }, 2500);
     });
 
     window.addEventListener("onEmbeddedMessagingWindowClosed",()=>{
         console.log("Chat closed");
-        botGreetingSeen = false; 
+        botGreetingSeen = false;
         showHome();
     });
 
@@ -129,39 +138,58 @@ window.addEventListener("onEmbeddedMessagingReady", () => {
         showHome();
     });
 
-    // Combined Trigger Logic
+    // PARTICIPANT DEBUGGER (Kept for your monitoring)
+    window.addEventListener("onEmbeddedMessagingConversationParticipantChanged", (event) => {
+        console.group("🧩 Participant Changed Event");
+        const rawPayload = event.detail?.conversationEntry?.entryPayload;
+        if (rawPayload) {
+            const parsed = JSON.parse(rawPayload);
+            parsed.entries?.forEach(entry => {
+                console.log("ROLE:", entry.participant?.role, "| NAME:", entry.displayName);
+            });
+        }
+        console.groupEnd();
+        
+        // Use participant change as a trigger if it's the bot
+        if(pendingMessage && !botGreetingSeen) {
+            console.log("🚀 Participant trigger: Bot joined, preparing send...");
+            executeSend();
+        }
+    });
+
+    // MESSAGE ENTRY LISTENER
     window.addEventListener("onEmbeddedMessagingConversationEntry", (event) => {
         const entry = event.detail?.conversationEntry;
-        if (!entry) return;
+        if(!entry) return;
 
-        console.log("📩 Entry Detected:", entry.entryType);
+        console.log("📩 Entry Type:", entry.entryType);
 
-        // Check if bot joined or sent a message
-        const botPresent = (entry.entryType === "Message" && entry.sender?.role !== "EndUser") || 
-                           (entry.entryType === "ParticipantChanged");
-
-        if (botPresent && !botGreetingSeen && pendingMessage) {
-            console.log("🚀 Bot detected via " + entry.entryType + ". Preparing to send...");
-            
-            botGreetingSeen = true;
-
-            // Increased delay to 1 second to ensure Salesforce is ready for input
-            setTimeout(() => {
-                if (pendingMessage) {
-                    console.log("📡 Sending message:", pendingMessage);
-                    embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
-                    pendingMessage = null;
-                }
-            }, 1000);
+        if (entry.entryType === "Message" && entry.sender?.role !== "EndUser") {
+            if(pendingMessage && !botGreetingSeen) {
+                console.log("🚀 Message trigger: Bot greeting detected");
+                executeSend();
+            }
         }
     });
 });
 
+function executeSend() {
+    if(!pendingMessage || botGreetingSeen) return;
+    botGreetingSeen = true;
+    
+    // Tiny delay to ensure the Salesforce input box is active
+    setTimeout(() => {
+        console.log("📡 Sending message to Salesforce:", pendingMessage);
+        embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
+        pendingMessage = null;
+    }, 500);
+}
+
 function launchChat(message){
     if(message){
         console.log("🟦 Customer action stored:", message);
-        pendingMessage = message; 
-        botGreetingSeen = false; 
+        pendingMessage = message;
+        botGreetingSeen = false;
     }
     embeddedservice_bootstrap.utilAPI.launchChat();
 }
@@ -169,8 +197,6 @@ function launchChat(message){
 document.addEventListener('DOMContentLoaded',()=>{
     const sendBtn = document.getElementById('sendBtn');
     const chatInput = document.getElementById('chatInput');
-    const orderButton = document.getElementById('orderButton');
-    const caseButton = document.getElementById('caseButton');
 
     sendBtn.addEventListener('click',()=>{
         const msg = chatInput.value.trim();
@@ -184,8 +210,8 @@ document.addEventListener('DOMContentLoaded',()=>{
         if(e.key === "Enter") sendBtn.click();
     });
 
-    orderButton.addEventListener('click',()=>launchChat(orderButton.textContent.trim()));
-    caseButton.addEventListener('click',()=>launchChat(caseButton.textContent.trim()));
+    document.getElementById('orderButton').addEventListener('click', function() { launchChat(this.textContent.trim()); });
+    document.getElementById('caseButton').addEventListener('click', function() { launchChat(this.textContent.trim()); });
 });
 </script>
 
