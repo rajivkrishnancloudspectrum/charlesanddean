@@ -95,6 +95,8 @@
 </div>
 
 <script>
+let pendingMessage = null;
+
 function hideHome(){ document.getElementById('chat-container').style.display='none'; }
 function showHome(){ document.getElementById('chat-container').style.display='block'; }
 
@@ -109,95 +111,69 @@ function makeMessagingFullScreen(){
     },200);
 }
 
-/* ================= INIT ================= */
-
 function initEmbeddedMessaging(){
-    try{
-        embeddedservice_bootstrap.settings.language='en_US';
-        embeddedservice_bootstrap.settings.hideChatButtonOnLoad=true;
+    embeddedservice_bootstrap.settings.language='en_US';
+    embeddedservice_bootstrap.settings.hideChatButtonOnLoad=true;
 
-        embeddedservice_bootstrap.init(
-            '00DTA00000B1e6j',
-            'Web_AI_Agent',
-            'https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563',
-            { scrt2URL:'https://charlesdean--partialcop.sandbox.my.salesforce-scrt.com' }
-        );
-
-    }catch(err){
-        console.error(err);
-    }
+    embeddedservice_bootstrap.init(
+        '00DTA00000B1e6j',
+        'Web_AI_Agent',
+        'https://charlesdean--partialcop.sandbox.my.site.com/ESWWebAIAgent1762338692563',
+        { scrt2URL:'https://charlesdean--partialcop.sandbox.my.salesforce-scrt.com' }
+    );
 }
 
-/* ================= READY EVENT (CRITICAL) ================= */
-
 window.addEventListener("onEmbeddedMessagingReady", () => {
-    console.log("✅ Embedded Messaging Ready");
 
-    // Attach lifecycle events ONLY after ready
     window.addEventListener("onEmbeddedMessagingConversationOpened",()=>{
-        console.log("Chat opened");
         hideHome();
         makeMessagingFullScreen();
     });
 
     window.addEventListener("onEmbeddedMessagingWindowClosed",()=>{
-        console.log("Chat closed");
         showHome();
     });
 
     window.addEventListener("onEmbeddedMessagingWindowMinimized",()=>{
-        console.log("Chat minimized");
         showHome();
     });
 
-    // 🔥 Participant change debugger (AGENT JOIN DETECTION)
+    // ✅ Correct participant change usage
     window.addEventListener(
-        "onEmbeddedMessagingConversationParticipantChanged",
-        (event) => {
-            console.group("🧩 Participant Changed Event");
-            console.log("Raw event:", event);
-            console.log("event.detail:", event.detail);
-            console.log("JSON:", JSON.stringify(event.detail, null, 2));
-            console.groupEnd();
+      "onEmbeddedMessagingConversationParticipantChanged",
+      (event) => {
 
-            const entries = event.detail?.entries || [];
-            entries.forEach(entry => {
-                if(entry.participant?.role === "Agent" && entry.operation === "add"){
-                    console.log("✅ LIVE AGENT JOINED:", entry.displayName);
+        const rawPayload = event.detail?.conversationEntry?.entryPayload;
+        if (!rawPayload) return;
+
+        const parsed = JSON.parse(rawPayload);
+        const entries = parsed.entries || [];
+
+        entries.forEach(entry => {
+            if (entry.operation === "add") {
+                if (pendingMessage) {
+                    embeddedservice_bootstrap.utilAPI.sendTextMessage(pendingMessage);
+                    pendingMessage = null;
                 }
-            });
-        }
-    );
-
-    // Optional: log all major events
-    [
-        "onEmbeddedMessagingMessageSent",
-        "onEmbeddedMessagingMessageReceived"
-    ].forEach(evt=>{
-        window.addEventListener(evt, e=>{
-            console.log(`📡 ${evt}`, e.detail);
+            }
         });
     });
 });
-
-/* ================= CHAT LAUNCH ================= */
 
 function launchChat(message){
     embeddedservice_bootstrap.utilAPI.launchChat()
         .then(()=>{
             if(message){
-                setTimeout(()=>{
-                    embeddedservice_bootstrap.utilAPI.sendTextMessage(message);
-                },1500);
+                pendingMessage = message;
             }
         });
 }
 
-/* ================= BUTTON WIRING ================= */
-
 document.addEventListener('DOMContentLoaded',()=>{
     const sendBtn=document.getElementById('sendBtn');
     const chatInput=document.getElementById('chatInput');
+    const orderButton=document.getElementById('orderButton');
+    const caseButton=document.getElementById('caseButton');
 
     sendBtn.addEventListener('click',()=>{
         const msg=chatInput.value.trim();
